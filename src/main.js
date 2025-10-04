@@ -1083,7 +1083,83 @@ $(document).ready(function(){
         $("#annotations-list").prepend('<div class="annotation-item" data-id="'+object.id+'"><div class="annotation-name"><img class="annotation-arrow" src="assets/arrow.svg">'+icon+'<span>'+object.name+'</span><img class="delete-layer" src="assets/delete.svg"></div><div class="annotation-details annotation-closed"><div class="annotation-description">'+object.desc+'</div><div class="annotation-data"><div class="annotation-data-field"><img src="assets/distance-icon.svg">'+object.distance+' km</div></div></div></div>');
       } else if (object.type == "area") {
         const icon = '<svg class="annotation-icon" width="23" height="23" viewBox="0 0 23 23" fill="none" xmlns="http://www.w3.org/2000/svg"><rect width="23" height="23" rx="5" fill="'+object.color+'"/><path d="M15.3652 8.5V13.5" stroke="white" stroke-width="1.5" stroke-linecap="round"/><path d="M8.5 15.3649H13.5" stroke="white" stroke-width="1.5" stroke-linecap="round"/><path d="M14.5303 9.03033C14.8232 8.73744 14.8232 8.26256 14.5303 7.96967C14.2374 7.67678 13.7626 7.67678 13.4697 7.96967L14.5303 9.03033ZM7.96967 13.4697C7.67678 13.7626 7.67678 14.2374 7.96967 14.5303C8.26256 14.8232 8.73744 14.8232 9.03033 14.5303L7.96967 13.4697ZM13.4697 7.96967L7.96967 13.4697L9.03033 14.5303L14.5303 9.03033L13.4697 7.96967Z" fill="white"/><circle cx="15.365" cy="6.85135" r="1.60135" stroke="white" stroke-width="1.5"/><circle cx="15.365" cy="15.3649" r="1.60135" stroke="white" stroke-width="1.5"/><circle cx="6.85135" cy="15.3649" r="1.60135" stroke="white" stroke-width="1.5"/></svg>';
-        $("#annotations-list").prepend('<div class="annotation-item" data-id="'+object.id+'"><div class="annotation-name"><img class="annotation-arrow" src="assets/arrow.svg">'+icon+'<span>'+object.name+'</span><img class="delete-layer" src="assets/delete.svg"></div><div class="annotation-details annotation-closed"><div class="annotation-description">'+object.desc+'</div><div class="annotation-data"><div class="annotation-data-field"><img src="assets/area-icon.svg">'+object.area+' km&sup2;</div><div class="annotation-data-field"><img src="assets/perimeter-icon.svg">'+object.distance+' km</div></div></div></div>');
+        $("#annotations-list").prepend('<div class="annotation-item" data-id="'+object.id+'"><div class="annotation-name"><img class="annotation-arrow" src="assets/arrow.svg">'+icon+'<span>'+object.name+'</span><img class="delete-layer" src="assets/delete.svg"></div><div class="annotation-details annotation-closed"><div class="annotation-description">'+object.desc+'</div><div class="annotation-data"><div class="annotation-data-field"><img src="assets/area-icon.svg">'+object.area+' km&sup2;</div><div class="annotation-data-field"><img src="assets/perimeter-icon.svg">'+object.distance+' km</div></div><div class="annotation-export"><button class="export-area-png" data-id="'+object.id+'">Export PNG</button><button class="export-area-kml" data-id="'+object.id+'">Export KML</button></div></div></div>');
+  // Export selected area as KML
+  function exportSelectedAreaKML(areaId) {
+    var areaObj = objects.find(x => x.id === areaId && x.type === "area");
+    if (!areaObj || !areaObj.layer) {
+      alert("Area not found or not loaded.");
+      return;
+    }
+    var geojson = areaObj.layer.toGeoJSON();
+    var kml = '<?xml version="1.0" encoding="UTF-8"?>\n';
+    kml += '<kml xmlns="http://www.opengis.net/kml/2.2">\n<Document>\n';
+    kml += '<Placemark><name>' + (areaObj.name || "Area") + '</name><Polygon><outerBoundaryIs><LinearRing><coordinates>' + geojson.geometry.coordinates[0].map(function(c) { return c[0] + ',' + c[1]; }).join(' ') + '</coordinates></LinearRing></outerBoundaryIs></Polygon></Placemark>\n';
+    kml += '</Document>\n</kml>';
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([kml], {type: 'application/vnd.google-earth.kml+xml'}));
+    a.download = (areaObj.name || "area") + '.kml';
+    a.click();
+  }
+
+  // Export selected area as PNG + world file
+  function exportSelectedAreaPNG(areaId) {
+    var areaObj = objects.find(x => x.id === areaId && x.type === "area");
+    if (!areaObj || !areaObj.layer) {
+      alert("Area not found or not loaded.");
+      return;
+    }
+    if (typeof window.leafletImage === 'undefined') {
+      alert('leaflet-image library is required for PNG export.');
+      return;
+    }
+    // Fit map to area bounds, then export
+    var originalBounds = map.getBounds();
+    var areaBounds = areaObj.layer.getBounds();
+    map.fitBounds(areaBounds, {animate: false});
+    setTimeout(function() {
+      leafletImage(map, function(err, canvas) {
+        if (err) {
+          alert('Error exporting image: ' + err);
+          return;
+        }
+        var img = canvas.toDataURL('image/png');
+        var a = document.createElement('a');
+        a.href = img;
+        a.download = (areaObj.name || "area") + '.png';
+        a.click();
+        // World file
+        var bounds = map.getBounds();
+        var sw = bounds.getSouthWest();
+        var ne = bounds.getNorthEast();
+        var width = canvas.width;
+        var height = canvas.height;
+        var pixelSizeX = (ne.lng - sw.lng) / width;
+        var pixelSizeY = (sw.lat - ne.lat) / height;
+        var worldFile = '';
+        worldFile += pixelSizeX + '\n';
+        worldFile += '0\n0\n';
+        worldFile += pixelSizeY + '\n';
+        worldFile += sw.lng + '\n';
+        worldFile += ne.lat + '\n';
+        var wf = document.createElement('a');
+        wf.href = URL.createObjectURL(new Blob([worldFile], {type: 'text/plain'}));
+        wf.download = (areaObj.name || "area") + '.pgw';
+        wf.click();
+        // Restore map view
+        map.fitBounds(originalBounds, {animate: false});
+      });
+    }, 500);
+  }
+  // Sidebar export event handlers
+  $(document).on("click", ".export-area-png", function(e) {
+    var areaId = $(this).attr("data-id");
+    exportSelectedAreaPNG(areaId);
+  });
+  $(document).on("click", ".export-area-kml", function(e) {
+    var areaId = $(this).attr("data-id");
+    exportSelectedAreaKML(areaId);
+  });
       } else if (object.type == "marker") {
         const icon = '<svg class="annotation-icon" width="23" height="23" viewBox="0 0 23 23" fill="none" xmlns="http://www.w3.org/2000/svg"><rect width="23" height="23" rx="5" fill="'+object.color+'"/><path d="M16.0252 11.2709C16.0252 14.8438 11.3002 17.9063 11.3002 17.9063C11.3002 17.9063 6.5752 14.8438 6.5752 11.2709C6.5752 10.0525 7.07301 8.8841 7.95912 8.0226C8.84522 7.16111 10.047 6.67712 11.3002 6.67712C12.5533 6.67712 13.7552 7.16111 14.6413 8.0226C15.5274 8.8841 16.0252 10.0525 16.0252 11.2709Z" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M11.2996 12.8021C12.1695 12.8021 12.8746 12.1166 12.8746 11.2709C12.8746 10.4252 12.1695 9.73962 11.2996 9.73962C10.4298 9.73962 9.72461 10.4252 9.72461 11.2709C9.72461 12.1166 10.4298 12.8021 11.2996 12.8021Z" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
         $("#annotations-list").prepend('<div class="annotation-item" data-id="'+object.id+'"><div class="annotation-name"><img class="annotation-arrow" src="assets/arrow.svg">'+icon+'<span>'+object.name+'</span><img class="delete-layer" src="assets/delete.svg"></div><div class="annotation-details annotation-closed"><div class="annotation-description">'+object.desc+'</div><div class="annotation-data"><div class="annotation-data-field"><img src="assets/marker-small-icon.svg">'+object.lat.toFixed(5)+', '+object.lng.toFixed(5)+'</div></div></div></div>');
