@@ -1,3 +1,76 @@
+  // Export PNG and world file for georeferencing
+  function exportPNGandWorldFile() {
+    if (typeof window.leafletImage === 'undefined') {
+      alert('leaflet-image library is required for PNG export.');
+      return;
+    }
+    leafletImage(map, function(err, canvas) {
+      if (err) {
+        alert('Error exporting image: ' + err);
+        return;
+      }
+      // Export PNG
+      var img = canvas.toDataURL('image/png');
+      var a = document.createElement('a');
+      a.href = img;
+      a.download = 'map.png';
+      a.click();
+
+      // Calculate world file (.pgw) content
+      var bounds = map.getBounds();
+      var sw = bounds.getSouthWest();
+      var ne = bounds.getNorthEast();
+      var width = canvas.width;
+      var height = canvas.height;
+      var pixelSizeX = (ne.lng - sw.lng) / width;
+      var pixelSizeY = (sw.lat - ne.lat) / height; // negative for north-up images
+      var worldFile = '';
+      worldFile += pixelSizeX + '\n'; // pixel size in X direction
+      worldFile += '0\n'; // rotation (usually 0)
+      worldFile += '0\n'; // rotation (usually 0)
+      worldFile += pixelSizeY + '\n'; // pixel size in Y direction (negative)
+      worldFile += sw.lng + '\n'; // X coordinate of center of upper left pixel
+      worldFile += ne.lat + '\n'; // Y coordinate of center of upper left pixel
+
+      // Download world file
+      var wf = document.createElement('a');
+      wf.href = URL.createObjectURL(new Blob([worldFile], {type: 'text/plain'}));
+      wf.download = 'map.pgw';
+      wf.click();
+    });
+  }
+  // Export KML
+  function exportKML() {
+    var tempgroup = new L.FeatureGroup();
+    map.addLayer(tempgroup);
+    map.eachLayer(function(layer) {
+      if (layer instanceof L.Marker || layer instanceof L.Polyline || layer instanceof L.Polygon) {
+        layer.addTo(tempgroup);
+      }
+    });
+    var geojson = tempgroup.toGeoJSON();
+    // Simple GeoJSON to KML conversion (points, lines, polygons)
+    function geojsonToKml(geojson) {
+      var kml = '<?xml version="1.0" encoding="UTF-8"?>\n';
+      kml += '<kml xmlns="http://www.opengis.net/kml/2.2">\n<Document>\n';
+      geojson.features.forEach(function(f) {
+        if (f.geometry.type === 'Point') {
+          kml += '<Placemark><Point><coordinates>' + f.geometry.coordinates[0] + ',' + f.geometry.coordinates[1] + '</coordinates></Point></Placemark>\n';
+        } else if (f.geometry.type === 'LineString') {
+          kml += '<Placemark><LineString><coordinates>' + f.geometry.coordinates.map(function(c) { return c[0] + ',' + c[1]; }).join(' ') + '</coordinates></LineString></Placemark>\n';
+        } else if (f.geometry.type === 'Polygon') {
+          kml += '<Placemark><Polygon><outerBoundaryIs><LinearRing><coordinates>' + f.geometry.coordinates[0].map(function(c) { return c[0] + ',' + c[1]; }).join(' ') + '</coordinates></LinearRing></outerBoundaryIs></Polygon></Placemark>\n';
+        }
+      });
+      kml += '</Document>\n</kml>';
+      return kml;
+    }
+    var kml = geojsonToKml(geojson);
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([kml], {type: 'application/vnd.google-earth.kml+xml'}));
+    a.download = 'map.kml';
+    a.click();
+  }
 $(document).ready(function(){
   // Coordinates to center the map. Could let the user choose when creating a room & persist when sharing a link (via GET params)
   const lat = 22.35;
@@ -1661,6 +1734,8 @@ $(document).ready(function(){
   $(document).on("click", ".cancel-button-place", cancelNearby);
   $(document).on("click", "#more-vertical", toggleMoreMenu);
   $(document).on("click", "#geojson", exportGeoJSON);
+  $(document).on("click", "#export-png-world", exportPNGandWorldFile);
+  $(document).on("click", "#export-kml", exportKML);
   $(document).on("click", "#search-box img", search);
   $(document).on("click", "#google-signin", signIn);
   $(document).on("click", "#create-map", createMap);
