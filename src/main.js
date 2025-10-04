@@ -1,7 +1,7 @@
 $(document).ready(function(){
   // Coordinates to center the map. Could let the user choose when creating a room & persist when sharing a link (via GET params)
-  const lat = 51.52;
-  const lon = -0.09;
+  const lat = 22.35;
+  const lon = 91.83;
 
   // Initialize the Leaflet map
   var map = L.map('mapDiv', {
@@ -48,27 +48,29 @@ $(document).ready(function(){
     $("#share-url").val(window.location.href);
   }
 
-  // Oddly enough Firebase auth doesn't initialize right on startup. It needs a slight delay?
-  window.setTimeout(function(){
-    if (checkAuth() && params.has('file')) {
+
+  // Use Firebase's onAuthStateChanged to reliably handle login state
+  firebase.auth().onAuthStateChanged(function(user) {
+    if (user && params.has('file')) {
       checkData();
+    } else if (user && !params.has('file')) {
+      // Prompt the user to create a map
+      $("#popup").find(".header-text").html("Create a map");
+      $("#popup").find(".subheader-text").html("Maps can be shared with friends to collaborate in real-time.");
+      $("#google-signin").attr("id", "create-map");
+      $("#create-map").html("Create a map");
+      $("#overlay").addClass("signin");
+      $("#popup").addClass("signin");
     } else {
-      if (checkAuth() && !params.has('file')) {
-        // Prompt the user to create a map
-        $("#popup").find(".header-text").html("Create a map");
-        $("#popup").find(".subheader-text").html("Maps can be shared with friends to collaborate in real-time.");
-        $("#google-signin").attr("id", "create-map");
-        $("#create-map").html("Create a map");
-      }
-      // Show popup & overlay
+      // Show popup & overlay for sign in
       $("#overlay").addClass("signin");
       $("#popup").addClass("signin");
     }
-  }, 500)
+  });
 
   function initMap() {
     // Makimum bounds for zooming and panning
-    map.setMaxBounds([[84.67351256610522, -174.0234375], [-58.995311187950925, 223.2421875]]);
+    map.setMaxBounds([[-90, -180], [90,180]]);
 
     // Set the tile layer. Could use Mapbox, OpenStreetMap, etc.
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {

@@ -1,15 +1,15 @@
-# Mapus
+# Mapper
 ![Preview](preview.gif)
 <br>
 Maps with real-time collaboration 🗺️
 
-Mapus is a tool to explore and annotate collaboratively on a map. You can draw, add markers, lines, areas, find places to go, observe other users, and much more.
+Mapper is a tool to explore and annotate collaboratively on a map. You can draw, add markers, lines, areas, find places to go, observe other users, and much more.
 
 <a href="https://www.producthunt.com/posts/mapus?utm_source=badge-top-post-badge&utm_medium=badge&utm_souce=badge-mapus" target="_blank"><img src="https://api.producthunt.com/widgets/embed-image/v1/top-post-badge.svg?post_id=307018&theme=light&period=weekly" alt="Mapus - An open source map tool with real-time collaboration | Product Hunt" style="width: 250px; height: 54px;" width="250" height="54" /></a>
 
-> You can support this project (and many others) through [GitHub Sponsors](https://github.com/sponsors/alyssaxuu)! ❤️
+> You can support this project (and many others) through [GitHub Sponsors](https://instagram.com/ig.alihasan)! ❤️
 
-Made by [Alyssa X](https://alyssax.com)
+Made by [ALI HASAN](https://instagram.com/ig.alihasan)
 
 ## Table of contents
 - [Features](#features)
@@ -81,4 +81,4 @@ Throughout the development of Mapus I've had several ideas in regards to additio
 - [MapBox](https://www.mapbox.com/) - for the tile seen in the GIF. The current version uses an OSM tile because it's free
 
 #
- Feel free to reach out to me through email at hi@alyssax.com or [on Twitter](https://twitter.com/alyssaxuu) if you have any questions or feedback! Hope you find this useful 💜
+ Feel free to reach out to me through email at hi@alyssax.com or [on Twitter](https://twitter.com/xalihasan) if you have any questions or feedback! Hope you find this useful 💜
