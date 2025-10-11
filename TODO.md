@@ -1,0 +1,4 @@
+- [ ] Fix eslint.config.js: Add trailing comma in globals object
+- [ ] Fix firebase.rules.json: Remove comments and make validate strings single-line
+- [ ] Fix styles.css: Remove display: inline-block from #share-copy
+- [ ] Verify no linter errors remain

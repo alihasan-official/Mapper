@@ -1,0 +1,25 @@
+{
+  "rules": {
+    ".read": "auth != null",
+    "mapFeatures": {
+      "$featureId": {
+        ".write": "auth != null && (data.child('owner').val() === auth.uid || (!data.exists() && newData.child('owner').val() === auth.uid) || root.child('maps').child(newData.child('mapId').val()).child('shared').val() === true)",
+        ".validate": "newData.hasChildren(['type', 'timestamp']) && (newData.child('type').val() === 'marker' || newData.child('type').val() === 'shape') && newData.child('timestamp').isNumber() && (!newData.child('description').exists() || newData.child('description').val().length <= 500) && (!newData.child('category').exists() || ['restaurant','hotel','park','shopping','landmark','other'].indexOf(newData.child('category').val()) !== -1)"
+      }
+    },
+    "users": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid",
+        ".validate": "newData.hasChildren(['name']) && newData.child('name').isString() && newData.child('name').val().length <= 50"
+      }
+    },
+    "maps": {
+      "$mapId": {
+        ".read": "auth != null",
+        ".write": "auth != null && (data.child('owner').val() === auth.uid || (!data.exists() && newData.child('owner').val() === auth.uid))",
+        ".validate": "newData.hasChildren(['owner', 'shared']) && newData.child('owner').isString() && (newData.child('shared').val() === true || newData.child('shared').val() === false)"
+      }
+    }
+  }
+}

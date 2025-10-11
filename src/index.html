@@ -5,10 +5,32 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
   <link rel="stylesheet" href="styles.css"/>
   <link rel="stylesheet" href="https://unpkg.com/@geoman-io/leaflet-geoman-free@latest/dist/leaflet-geoman.css" />
 </head>
 <body style="margin:0px;">
+  <div id="marker-dialog" style="display: none;">
+    <div class="dialog-nav">
+      <span>Add Custom Marker</span>
+      <img src="assets/close-button.svg" id="close-marker-dialog">
+    </div>
+    <input type="text" id="marker-title" placeholder="Enter marker title">
+    <textarea id="marker-description" placeholder="Enter marker description"></textarea>
+    <select id="marker-category" class="marker-select">
+      <option value="">Select a category</option>
+      <option value="restaurant">Restaurant</option>
+      <option value="hotel">Hotel</option>
+      <option value="park">Park</option>
+      <option value="shopping">Shopping</option>
+      <option value="landmark">Landmark</option>
+      <option value="other">Other</option>
+    </select>
+    <div class="dialog-buttons">
+      <button id="save-marker" class="primary-button">Save Marker</button>
+      <button id="cancel-marker">Cancel</button>
+    </div>
+  </div>
   <div id="share">
     <div id="share-nav">
       <span>Share Cool Map</span>
@@ -19,8 +41,11 @@
   </div>
   <div id="popup">
     <div class="header-text">Welcome to Mapper by Ali Hasan!</div>
-    <div class="subheader-text">To get started, click below to sign in with Google.</div>
-    <div id="google-signin"><img src="assets/google-logo.svg"> Sign in with Google</div>
+    <div class="subheader-text">To get started, sign in with Google or continue without logging in.</div>
+    <div style="display:flex; gap:10px; justify-content:center; margin-top:16px;">
+      <div id="google-signin"><img src="assets/google-logo.svg"> Sign in with Google</div>
+      <div id="continue-guest">Continue without login</div>
+    </div>
   </div>
   <div id="overlay"></div>
   <div id="more-menu">
@@ -33,6 +58,10 @@
   <script src="https://unpkg.com/leaflet-image/leaflet-image.js"></script>
   </div>
   <div id="sidebar">
+    <div id="search-results" class="section" style="display: none;">
+      <div class="section-name">Search Results</div>
+      <div class="results-list"></div>
+    </div>
     <div id="map-details" class="section">
       <input id="map-name" value="Cool map 👻" disabled>
       <input id="map-description" value="Let's all collaborate here">
@@ -96,10 +125,38 @@
   </div>
   <div id="search-box">
     <input id="search-input" placeholder="Search for a place"/>
+    <div class="loading-indicator"></div>
     <img src="assets/search-icon.svg" >
   </div>
+  <div id="filter-control">
+    <div class="filter-header">
+      <span>Filter Markers</span>
+      <img src="assets/close-button.svg" id="close-filter">
+    </div>
+    <div class="filter-options">
+      <label class="filter-option">
+        <input type="checkbox" value="restaurant" checked> Restaurant
+      </label>
+      <label class="filter-option">
+        <input type="checkbox" value="hotel" checked> Hotel
+      </label>
+      <label class="filter-option">
+        <input type="checkbox" value="park" checked> Park
+      </label>
+      <label class="filter-option">
+        <input type="checkbox" value="shopping" checked> Shopping
+      </label>
+      <label class="filter-option">
+        <input type="checkbox" value="landmark" checked> Landmark
+      </label>
+      <label class="filter-option">
+        <input type="checkbox" value="other" checked> Other
+      </label>
+    </div>
+  </div>
   <div id="right-nav">
-    <div id="share-button">Share</div>
+    <button id="filter-toggle" class="control-button">Filter</button>
+    <div id="share-button">Share map</div>
   </div>
   <div id="drawing-controls" class="noselect">
     <div id="cursor-tool" class="tool tool-active">
@@ -171,6 +228,7 @@ const firebaseConfig = {
   <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
   <script src='https://unpkg.com/@turf/turf@6/turf.min.js'></script>
   <script src="leaflet.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
   <script src="https://unpkg.com/@geoman-io/leaflet-geoman-free@latest/dist/leaflet-geoman.min.js"></script>
   <script src="main.js"></script>
 </body>

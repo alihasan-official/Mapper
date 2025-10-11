@@ -95,6 +95,25 @@ body {
   cursor: pointer;
   background-color: var(--hover-grey)!important;
 }
+#continue-guest {
+  height: 45px;
+  line-height: 45px;
+  border-radius: 5px;
+  background-color: #FFF;
+  border: 1px solid #E7EAEC;
+  box-sizing: border-box;
+  box-shadow: 0px 1px 2px rgba(53, 87, 98, 0.1);
+  text-align: center;
+  color: var(--text-grey);
+  font-family: Inter;
+  font-weight: 700;
+  font-size: 14px;
+  padding: 0 14px;
+}
+#continue-guest:hover {
+  cursor: pointer;
+  background-color: var(--hover-grey)!important;
+}
 .signin {
   visibility: visible!important;
 }
@@ -160,7 +179,6 @@ body {
   float: right;
   margin-right: 20px;
   vertical-align: middle;
-  display: inline-block;
   font-family: Inter;
   font-size: 13px;
   font-weight: 600;
@@ -188,7 +206,7 @@ body {
 /* Main styles for sidebar */
 .section {
   border-bottom: 1px solid #E8E8E8;
-  width: calc(100% - 18px;);
+  width: calc(100% - 18px);
   padding: 18px;
 }
 .section-name {
@@ -367,7 +385,6 @@ th img {
   right: 20px;
   margin-top: 8px;
   vertical-align: middle;
-  display: inline-block;
   visibility: hidden;
 }
 .delete-layer:hover {
@@ -988,4 +1005,235 @@ h3 img {
         -ms-user-select: none; /* Internet Explorer/Edge */
             user-select: none; /* Non-prefixed version, currently
                                   supported by Chrome, Edge, Opera and Firefox */
+}
+
+#marker-dialog {
+  position: absolute;
+  z-index: 9999999;
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  width: 300px;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  padding: 16px;
+}
+
+.dialog-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.dialog-nav span {
+  font-weight: 600;
+  color: var(--text-black);
+}
+
+.dialog-nav img {
+  cursor: pointer;
+}
+
+#marker-title {
+  width: 100%;
+  padding: 8px;
+  margin-bottom: 12px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+#marker-description {
+  width: 100%;
+  padding: 8px;
+  margin-bottom: 16px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  height: 80px;
+  resize: none;
+  font-family: Inter, sans-serif;
+  font-size: 14px;
+}
+
+.dialog-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.dialog-buttons button {
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  border: none;
+}
+
+.primary-button {
+  background-color: #007AFF;
+  color: white;
+}
+
+#cancel-marker {
+  background-color: #f5f5f5;
+  color: var(--text-black);
+}
+
+.marker-popup h3 {
+  margin: 0 0 8px 0;
+  font-size: 16px;
+  color: var(--text-black);
+}
+
+.marker-popup p {
+  margin: 0;
+  color: var(--text-grey);
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+/* Marker category select */
+.marker-select {
+  width: 100%;
+  padding: 8px;
+  margin-bottom: 16px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 14px;
+  font-family: Inter, sans-serif;
+  color: var(--text-black);
+  background-color: white;
+}
+
+/* Filter control */
+#filter-control {
+  position: absolute;
+  top: 15px;
+  right: 200px;
+  background: white;
+  border-radius: 4px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  width: 200px;
+  z-index: 1000;
+  display: none;
+}
+
+.filter-header {
+  padding: 12px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.filter-header span {
+  font-weight: 600;
+  color: var(--text-black);
+  font-size: 14px;
+}
+
+.filter-header img {
+  cursor: pointer;
+  width: 16px;
+  height: 16px;
+}
+
+.filter-options {
+  padding: 12px;
+}
+
+.filter-option {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--text-black);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.filter-option:last-child {
+  margin-bottom: 0;
+}
+
+.filter-option input {
+  margin-right: 8px;
+}
+
+.control-button {
+  height: 48px;
+  padding: 0 20px;
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-family: Inter, sans-serif;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-black);
+  cursor: pointer;
+  margin-right: 10px;
+  transition: all 0.2s ease;
+}
+
+.control-button:hover {
+  background: var(--hover-grey);
+}
+
+/* Category markers */
+.marker-category {
+  font-size: 12px;
+  color: var(--text-grey);
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--border);
+}
+
+/* Route control styles */
+.route-control {
+  background: white;
+  padding: 6px;
+  border-radius: 4px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.route-button {
+  padding: 8px 16px;
+  background-color: white;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-family: Inter, sans-serif;
+  font-size: 14px;
+  color: var(--text-black);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.route-button:hover {
+  background-color: var(--hover-grey);
+}
+
+.route-button.active {
+  background-color: #007AFF;
+  color: white;
+  border-color: #007AFF;
+}
+
+.route-marker .route-point {
+  width: 12px;
+  height: 12px;
+  background-color: #007AFF;
+  border: 2px solid white;
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.route-info {
+  padding: 8px;
+  font-family: Inter, sans-serif;
+  font-size: 14px;
+}
+
+.route-info strong {
+  color: var(--text-black);
+  font-weight: 600;
 }
