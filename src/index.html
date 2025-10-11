@@ -5,32 +5,10 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
   <link rel="stylesheet" href="styles.css"/>
   <link rel="stylesheet" href="https://unpkg.com/@geoman-io/leaflet-geoman-free@latest/dist/leaflet-geoman.css" />
 </head>
 <body style="margin:0px;">
-  <div id="marker-dialog" style="display: none;">
-    <div class="dialog-nav">
-      <span>Add Custom Marker</span>
-      <img src="assets/close-button.svg" id="close-marker-dialog">
-    </div>
-    <input type="text" id="marker-title" placeholder="Enter marker title">
-    <textarea id="marker-description" placeholder="Enter marker description"></textarea>
-    <select id="marker-category" class="marker-select">
-      <option value="">Select a category</option>
-      <option value="restaurant">Restaurant</option>
-      <option value="hotel">Hotel</option>
-      <option value="park">Park</option>
-      <option value="shopping">Shopping</option>
-      <option value="landmark">Landmark</option>
-      <option value="other">Other</option>
-    </select>
-    <div class="dialog-buttons">
-      <button id="save-marker" class="primary-button">Save Marker</button>
-      <button id="cancel-marker">Cancel</button>
-    </div>
-  </div>
   <div id="share">
     <div id="share-nav">
       <span>Share Cool Map</span>
@@ -39,32 +17,20 @@
     <input value="https://coollink.com/haha" id="share-url" readonly="readonly">
     <div id="share-copy">Copy link</div>
   </div>
-  <div id="popup">
-    <div class="header-text">Welcome to Mapper by Ali Hasan!</div>
-    <div class="subheader-text">To get started, sign in with Google or continue without logging in.</div>
-    <div style="display:flex; gap:10px; justify-content:center; margin-top:16px;">
-      <div id="google-signin"><img src="assets/google-logo.svg"> Sign in with Google</div>
-      <div id="continue-guest">Continue without login</div>
-    </div>
+  <div id="popup" style="display: none;">
+    <div class="header-text">Welcome to Multi-Modal Navigation!</div>
+    <div class="subheader-text">Explore routes and transport options around the world.</div>
+    <div id="google-signin"><img src="assets/google-logo.svg"> Sign in with Google</div>
   </div>
-  <div id="overlay"></div>
+  <div id="overlay" style="display: none;"></div>
   <div id="more-menu">
-  <div class="more-item" id="geojson">Export to GeoJSON</div>
-  <div class="more-item" id="export-png-world">Export PNG + World File</div>
-  <div class="more-item" id="export-kml">Export to KML</div>
-  <a href="https://github.com/alihasan-official" target="_blank" class="more-item">GitHub repo</a>
-  <div class="more-item" id="logout">Log out</div>
-  <!-- leaflet-image for PNG export -->
-  <script src="https://unpkg.com/leaflet-image/leaflet-image.js"></script>
+    <div class="more-item" id="geojson">Export to GeoJSON</div>
+    <a href="https://github.com/alihasan-official" target="_blank" class="more-item">GitHub repo</a>
   </div>
   <div id="sidebar">
-    <div id="search-results" class="section" style="display: none;">
-      <div class="section-name">Search Results</div>
-      <div class="results-list"></div>
-    </div>
     <div id="map-details" class="section">
-      <input id="map-name" value="Cool map 👻" disabled>
-      <input id="map-description" value="Let's all collaborate here">
+      <input id="map-name" value="Multi-Modal Navigation" disabled>
+      <input id="map-description" value="Explore routes and transport options worldwide">
       <div id="more-vertical">
         <img src="assets/more-vertical.svg">
       </div>
@@ -110,6 +76,84 @@
         </tr>
       </table>
     </div>
+    <div class="section" id="navigation-section">
+      <div class="section-name">Navigation</div>
+      <div id="system-status" style="
+        background: #e8f5e8; 
+        color: #2e7d32; 
+        padding: 8px; 
+        margin: 5px 0; 
+        border-radius: 3px; 
+        font-size: 12px; 
+        text-align: center;
+        display: none;
+      ">
+        ✓ Navigation system ready
+      </div>
+      <div class="navigation-controls">
+        <div class="route-mode-toggle">
+          <button id="full-route-mode" class="mode-btn active">Full Route</button>
+          <button id="local-route-mode" class="mode-btn">Local Route</button>
+        </div>
+        <div class="location-inputs">
+          <div class="input-group">
+            <label for="origin-input">From</label>
+            <input type="text" id="origin-input" placeholder="Enter origin or use current location">
+            <button id="use-current-location" class="location-btn" title="Use current location">📍</button>
+          </div>
+          <div class="input-group">
+            <label for="destination-input">To</label>
+            <input type="text" id="destination-input" placeholder="Enter destination">
+          </div>
+        </div>
+        <div class="transport-filters" id="transport-filters" style="display: none;">
+          <div class="filter-label">Transport Types:</div>
+          <div class="filter-options">
+            <label class="filter-option">
+              <input type="checkbox" value="bus" checked> Bus
+            </label>
+            <label class="filter-option">
+              <input type="checkbox" value="metro" checked> Metro
+            </label>
+            <label class="filter-option">
+              <input type="checkbox" value="taxi" checked> Taxi/CNG
+            </label>
+            <label class="filter-option">
+              <input type="checkbox" value="rickshaw" checked> Rickshaw
+            </label>
+          </div>
+        </div>
+        <button id="calculate-route" class="calculate-btn">Calculate Route</button>
+        <div id="route-loading" class="loading-indicator" style="display: none;">
+          <div class="spinner"></div>
+          <span>Calculating route...</span>
+        </div>
+      </div>
+    </div>
+    <div class="section" id="route-results-section" style="display: none;">
+      <div class="section-name">Route Results</div>
+      <div id="route-results">
+        <!-- Route results will be populated here -->
+      </div>
+    </div>
+    <div class="section" id="transport-hubs-section">
+      <div class="section-name">Transport Hubs</div>
+      <div class="transport-hub-controls">
+        <button id="add-transport-hub" class="add-hub-btn">+ Add Hub</button>
+        <div class="hub-filters">
+          <select id="hub-type-filter">
+            <option value="all">All Types</option>
+            <option value="bus_station">Bus Station</option>
+            <option value="metro">Metro</option>
+            <option value="taxi">Taxi/CNG</option>
+            <option value="rickshaw">Rickshaw</option>
+          </select>
+        </div>
+      </div>
+      <div id="transport-hubs-list">
+        <!-- Transport hubs will be populated here -->
+      </div>
+    </div>
     <div class="section" id="annotations-section">
       <div id="annotations-header">
         <div class="section-name">Annotations</div>
@@ -119,44 +163,16 @@
       </div>
     </div>
     <div class="section" id="attribution-section">
-      <div class="section-name">Made by ig.alihasan</div>
+      <div class="section-name">Multi-Modal Navigation</div>
       <div id="attribution">© <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors</div>
     </div>
   </div>
   <div id="search-box">
     <input id="search-input" placeholder="Search for a place"/>
-    <div class="loading-indicator"></div>
     <img src="assets/search-icon.svg" >
   </div>
-  <div id="filter-control">
-    <div class="filter-header">
-      <span>Filter Markers</span>
-      <img src="assets/close-button.svg" id="close-filter">
-    </div>
-    <div class="filter-options">
-      <label class="filter-option">
-        <input type="checkbox" value="restaurant" checked> Restaurant
-      </label>
-      <label class="filter-option">
-        <input type="checkbox" value="hotel" checked> Hotel
-      </label>
-      <label class="filter-option">
-        <input type="checkbox" value="park" checked> Park
-      </label>
-      <label class="filter-option">
-        <input type="checkbox" value="shopping" checked> Shopping
-      </label>
-      <label class="filter-option">
-        <input type="checkbox" value="landmark" checked> Landmark
-      </label>
-      <label class="filter-option">
-        <input type="checkbox" value="other" checked> Other
-      </label>
-    </div>
-  </div>
   <div id="right-nav">
-    <button id="filter-toggle" class="control-button">Filter</button>
-    <div id="share-button">Share map</div>
+    <div id="share-button">Share</div>
   </div>
   <div id="drawing-controls" class="noselect">
     <div id="cursor-tool" class="tool tool-active">
@@ -202,34 +218,13 @@
     <div id="observing-name"></div>
   </div>
   <div id="mapDiv"></div>
-  <script src="https://www.gstatic.com/firebasejs/8.2.9/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.2.9/firebase-analytics.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.2.8/firebase-auth.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.2.8/firebase-storage.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.2.9/firebase-firestore.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.2.9/firebase-database.js"></script>
-  <script>
-    // For Firebase JS SDK v7.20.0 and later, measurementId is optional
-const firebaseConfig = {
-  apiKey: "AIzaSyAF38FQpfhMrw6xo7A5EP_TmpenidRI5hw",
-  authDomain: "social-map-80cae.firebaseapp.com",
-  databaseURL: "https://social-map-80cae-default-rtdb.firebaseio.com",
-  projectId: "social-map-80cae",
-  storageBucket: "social-map-80cae.firebasestorage.app",
-  messagingSenderId: "787084142357",
-  appId: "1:787084142357:web:0c37f698cdb16d08f06b1c",
-  measurementId: "G-8YP6DGLDMG"
-};
-  
-    // Initialize Firebase
-    firebase.initializeApp(firebaseConfig);
-    firebase.analytics();
-  </script>
   <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
   <script src='https://unpkg.com/@turf/turf@6/turf.min.js'></script>
   <script src="leaflet.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
   <script src="https://unpkg.com/@geoman-io/leaflet-geoman-free@latest/dist/leaflet-geoman.min.js"></script>
+  <script src="api.js"></script>
+  <script src="routing.js"></script>
   <script src="main.js"></script>
 </body>
 </html>
+

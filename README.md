@@ -5,7 +5,9 @@ Maps with real-time collaboration 🗺️
 
 Mapper is a tool to explore and annotate collaboratively on a map. You can draw, add markers, lines, areas, find places to go, observe other users, and much more.
 
-> You can support this project (and many others) through [Instagram Sponsors](https://instagram.com/ig.alihasan)! ❤️
+<a href="https://www.producthunt.com/posts/mapus?utm_source=badge-top-post-badge&utm_medium=badge&utm_souce=badge-mapus" target="_blank"><img src="https://api.producthunt.com/widgets/embed-image/v1/top-post-badge.svg?post_id=307018&theme=light&period=weekly" alt="Mapus - An open source map tool with real-time collaboration | Product Hunt" style="width: 250px; height: 54px;" width="250" height="54" /></a>
+
+> You can support this project (and many others) through [GitHub Sponsors](https://instagram.com/ig.alihasan)! ❤️
 
 Made by [ALI HASAN](https://instagram.com/ig.alihasan)
 
