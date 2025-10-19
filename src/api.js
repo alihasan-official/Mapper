@@ -44,6 +44,9 @@ class NavigationAPI {
 
     await this.rateLimit();
 
+    // Normalize profile for OSRM (public demo supports 'driving', 'walking', 'cycling')
+    const osrmProfile = profile === 'foot' ? 'walking' : profile;
+
     // Try multiple OSRM servers for redundancy
     const servers = [
       'https://router.project-osrm.org',
@@ -52,18 +55,14 @@ class NavigationAPI {
 
     for (const server of servers) {
       try {
-        const coordString = coords.map(coord => `${coord[1]},${coord[0]}`).join(';');
-        const url = `${server}/route/v1/${profile}/${coordString}?overview=full&geometries=geojson&steps=true`;
+        // OSRM expects lon,lat order
+        const coordString = coords.map(coord => `${coord[0]},${coord[1]}`).join(';');
+        const url = `${server}/route/v1/${osrmProfile}/${coordString}?overview=full&geometries=geojson&steps=true`;
         
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
         
-        const response = await fetch(url, {
-          signal: controller.signal,
-          headers: {
-            'User-Agent': 'MultiModalNavigation/1.0'
-          }
-        });
+        const response = await fetch(url, { signal: controller.signal });
         
         clearTimeout(timeoutId);
         
@@ -83,7 +82,7 @@ class NavigationAPI {
         console.warn(`OSRM server ${server} failed:`, error.message);
         if (server === servers[servers.length - 1]) {
           // Last server failed, create fallback route
-          return this.createFallbackRoute(coords, profile);
+          return this.createFallbackRoute(coords, osrmProfile);
         }
       }
     }
@@ -96,9 +95,9 @@ class NavigationAPI {
     
     // Estimate duration based on profile
     const speeds = {
-      'driving': 50, // km/h
-      'foot': 5,
-      'cycling': 15
+      driving: 50, // km/h
+      walking: 5,
+      cycling: 15
     };
     
     const speed = speeds[profile] || 50;
@@ -111,7 +110,8 @@ class NavigationAPI {
         duration: duration,
         geometry: {
           type: 'LineString',
-          coordinates: coords.map(coord => [coord[1], coord[0]])
+          // Keep OSRM's lon,lat ordering in geometry
+          coordinates: coords.map(coord => [coord[0], coord[1]])
         },
         legs: [{
           steps: [{
@@ -119,7 +119,7 @@ class NavigationAPI {
             duration: duration,
             geometry: {
               type: 'LineString',
-              coordinates: coords.map(coord => [coord[1], coord[0]])
+              coordinates: coords.map(coord => [coord[0], coord[1]])
             }
           }]
         }]
@@ -166,8 +166,7 @@ out body;`;
         const response = await fetch(server, {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'User-Agent': 'MultiModalNavigation/1.0'
+            'Content-Type': 'application/x-www-form-urlencoded'
           },
           body: `data=${encodeURIComponent(query)}`,
           signal: controller.signal
@@ -199,6 +198,95 @@ out body;`;
     }
   }
 
+  // Generic Overpass POI search for multiple keys (amenity/shop/tourism/leisure/public_transport)
+  async fetchOverpassPOIs(bounds, filters) {
+    const cacheKey = `overpass_pois_${bounds.join('_')}_${Object.keys(filters).sort().map(k => `${k}:${filters[k].join(',')}`).join('|')}`;
+    const cached = this.getCached(cacheKey);
+    if (cached) return cached;
+
+    await this.rateLimit();
+
+    const servers = [
+      'https://overpass-api.de/api/interpreter',
+      'https://lz4.overpass-api.de/api/interpreter',
+      'https://z.overpass-api.de/api/interpreter'
+    ];
+
+    for (const server of servers) {
+      try {
+        const [north, west, south, east] = bounds;
+        const parts = [];
+        Object.entries(filters).forEach(([key, values]) => {
+          values.forEach((val) => {
+            // Search nodes and ways for broader coverage
+            parts.push(`node["${key}"="${val}"](bbox:${south},${west},${north},${east});`);
+            parts.push(`way["${key}"="${val}"](bbox:${south},${west},${north},${east});`);
+          });
+        });
+        const query = `[out:json][timeout:20];
+(
+  ${parts.join('\n  ')}
+);
+out center tags;`;
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 20000);
+        const response = await fetch(server, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+          },
+          body: `data=${encodeURIComponent(query)}`,
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          throw new Error(`Overpass API error: ${response.status}`);
+        }
+
+        const data = await response.json();
+        this.setCache(cacheKey, data);
+        return data;
+      } catch (error) {
+        console.warn(`Overpass POIs server ${server} failed:`, error.message);
+        if (server === servers[servers.length - 1]) {
+          return { elements: [] };
+        }
+      }
+    }
+  }
+
+  // Find nearest places by arbitrary filter sets using Overpass
+  async findNearestPlaces(center, radius, filterSets) {
+    try {
+      const bounds = this.calculateBounds(center, radius);
+      const data = await this.fetchOverpassPOIs(bounds, filterSets);
+      if (!data.elements) return [];
+
+      const places = data.elements
+        .map(el => {
+          const lat = el.lat || el.center?.lat;
+          const lon = el.lon || el.center?.lon;
+          if (!lat || !lon) return null;
+          return {
+            id: el.id,
+            name: el.tags?.name || el.tags?.brand || 'Place',
+            lat,
+            lng: lon,
+            tags: el.tags,
+            distance: this.calculateDistance(center.lat, center.lng, lat, lon)
+          };
+        })
+        .filter(Boolean)
+        .sort((a, b) => a.distance - b.distance);
+      return places;
+    } catch (e) {
+      console.error('Error finding nearest places:', e);
+      return [];
+    }
+  }
+
   // Nominatim Geocoding API
   async geocodeLocation(query, limit = 5) {
     const cacheKey = `geocode_${query}`;
@@ -210,11 +298,7 @@ out body;`;
     try {
       const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=${limit}&addressdetails=1`;
       
-      const response = await fetch(url, {
-        headers: {
-          'User-Agent': 'MultiModalNavigation/1.0'
-        }
-      });
+      const response = await fetch(url);
 
       if (!response.ok) {
         throw new Error(`Nominatim API error: ${response.status}`);
@@ -240,11 +324,7 @@ out body;`;
     try {
       const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1`;
       
-      const response = await fetch(url, {
-        headers: {
-          'User-Agent': 'MultiModalNavigation/1.0'
-        }
-      });
+      const response = await fetch(url);
 
       if (!response.ok) {
         throw new Error(`Nominatim API error: ${response.status}`);
