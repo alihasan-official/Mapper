@@ -28,10 +28,6 @@ class NavigationRouter {
       }
     } catch (error) {
       console.error('Route calculation error:', error);
-      throw error;
-    }
-  }
-
   // Full route calculation (point-to-point)
   async calculateFullRoute(origin, destination) {
     const coords = [
@@ -39,22 +35,83 @@ class NavigationRouter {
       [destination.lng, destination.lat]
     ];
 
-    const routeData = await this.api.fetchOSRMRoute(coords, 'driving');
+    // Try multiple routing profiles for better results
+    const profiles = ['driving', 'foot', 'cycling'];
+    let routeData = null;
+    let usedProfile = 'driving';
+
+    for (const profile of profiles) {
+      try {
+        routeData = await this.api.fetchOSRMRoute(coords, profile);
+        if (routeData.routes && routeData.routes.length > 0) {
+          usedProfile = profile;
+          break;
+        }
+      } catch (error) {
+        console.warn(`Failed to get ${profile} route:`, error);
+        continue;
+      }
+    }
     
-    if (!routeData.routes || routeData.routes.length === 0) {
-      throw new Error('No route found between the selected points.');
+    if (!routeData || !routeData.routes || routeData.routes.length === 0) {
+      throw new Error('No route found between the selected points. Please try different locations.');
     }
 
     const route = routeData.routes[0];
-    const geometry = routeData.routes[0].geometry;
+    const geometry = route.geometry;
     
-    // Create route polyline
-    const routePolyline = L.polyline(geometry.coordinates.map(coord => [coord[1], coord[0]]), {
+    // Validate geometry
+    if (!geometry || !geometry.coordinates || geometry.coordinates.length === 0) {
+      throw new Error('Invalid route geometry received.');
+    }
+    
+    // Create route polyline with proper coordinates
+    const routeCoordinates = geometry.coordinates.map(coord => [coord[1], coord[0]]);
+    const routePolyline = L.polyline(routeCoordinates, {
       color: '#4890E8',
       weight: 6,
       opacity: 0.8,
       className: 'route-line'
     }).addTo(this.map);
+
+    // Add start and end markers
+    const startIcon = L.divIcon({
+      html: '<div style="background: #4CAF50; color: white; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; box-shadow: 0 2px 6px rgba(0,0,0,0.3);">A</div>',
+      iconSize: [30, 30],
+      className: 'route-marker'
+    });
+
+    const endIcon = L.divIcon({
+      html: '<div style="background: #F44336; color: white; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; box-shadow: 0 2px 6px rgba(0,0,0,0.3);">B</div>',
+      iconSize: [30, 30],
+      className: 'route-marker'
+    });
+
+    const startMarker = L.marker([origin.lat, origin.lng], { icon: startIcon }).addTo(this.map);
+    const endMarker = L.marker([destination.lat, destination.lng], { icon: endIcon }).addTo(this.map);
+
+    // Create segments from steps
+    const segments = [];
+    if (route.legs && route.legs[0] && route.legs[0].steps) {
+      route.legs[0].steps.forEach((step, index) => {
+        segments.push({
+          type: usedProfile === 'foot' ? 'walking' : usedProfile,
+          description: step.maneuver?.instruction || `Continue ${this.formatDistance(step.distance)}`,
+          distance: step.distance,
+          duration: step.duration,
+          icon: this.getProfileIcon(usedProfile)
+        });
+      });
+    } else {
+      // Fallback single segment
+      segments.push({
+        type: usedProfile === 'foot' ? 'walking' : usedProfile,
+        description: `${usedProfile === 'foot' ? 'Walk' : 'Drive'} to destination`,
+        distance: route.distance,
+        duration: route.duration,
+        icon: this.getProfileIcon(usedProfile)
+      });
+    }
 
     // Add route info
     const routeInfo = {
@@ -63,13 +120,31 @@ class NavigationRouter {
       duration: route.duration,
       geometry: geometry,
       polyline: routePolyline,
-      steps: route.legs[0].steps || []
+      segments: segments,
+      markers: [startMarker, endMarker],
+      profile: usedProfile,
+      transfers: 0
     };
 
     this.currentRoutes.push(routeInfo);
     
-    // Fit map to route
-    this.map.fitBounds(routePolyline.getBounds(), { padding: [20, 20] });
+    // Fit map to route with padding
+    const bounds = L.latLngBounds();
+    bounds.extend(routePolyline.getBounds());
+    this.map.fitBounds(bounds, { padding: [50, 50] });
+
+    return routeInfo;
+  }
+
+  // Get icon for routing profile
+  getProfileIcon(profile) {
+    const icons = {
+      'driving': '🚗',
+      'foot': '🚶',
+      'cycling': '🚴'
+    };
+    return icons[profile] || '🚗';
+  }olyline.getBounds(), { padding: [20, 20] });
 
     return routeInfo;
   }
@@ -361,20 +436,25 @@ class NavigationRouter {
       const bounds = L.latLngBounds();
       this.currentRoutes.forEach(route => {
         if (route.polyline) {
-          bounds.extend(route.polyline.getBounds());
-        } else if (route.polylines) {
-          route.polylines.forEach(polyline => {
-            if (polyline.getBounds) {
-              bounds.extend(polyline.getBounds());
-            }
-          });
-        }
-      });
-      this.map.fitBounds(bounds, { padding: [20, 20] });
-    }
-  }
-
-  // Clear all current routes from map
+          bounds.exten  // Clear all current routes from map
+  clearRoutes() {
+    this.currentRoutes.forEach(route => {
+      if (route.polyline) {
+        this.map.removeLayer(route.polyline);
+      }
+      if (route.polylines) {
+        route.polylines.forEach(polyline => {
+          this.map.removeLayer(polyline);
+        });
+      }
+      if (route.markers) {
+        route.markers.forEach(marker => {
+          this.map.removeLayer(marker);
+        });
+      }
+    });
+    this.currentRoutes = [];
+  }routes from map
   clearRoutes() {
     this.currentRoutes.forEach(route => {
       if (route.polyline) {

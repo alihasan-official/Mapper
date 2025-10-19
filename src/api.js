@@ -83,13 +83,7 @@ class NavigationAPI {
         console.warn(`OSRM server ${server} failed:`, error.message);
         if (server === servers[servers.length - 1]) {
           // Last server failed, create fallback route
-          return this.createFallbackRoute(coords, profile);
-        }
-      }
-    }
-  }
-
-  // Create fallback route when OSRM is unavailable
+      // Create fallback route when OSRM is unavailable
   createFallbackRoute(coords, profile) {
     const [start, end] = coords;
     const distance = this.calculateDistance(start[1], start[0], end[1], end[0]) * 1000; // meters
@@ -104,6 +98,12 @@ class NavigationAPI {
     const speed = speeds[profile] || 50;
     const duration = (distance / 1000) / speed * 3600; // seconds
     
+    // Create proper GeoJSON LineString coordinates (lng, lat format)
+    const routeCoords = [
+      [start[0], start[1]], // [lng, lat]
+      [end[0], end[1]]      // [lng, lat]
+    ];
+    
     return {
       code: 'Ok',
       routes: [{
@@ -111,15 +111,24 @@ class NavigationAPI {
         duration: duration,
         geometry: {
           type: 'LineString',
-          coordinates: coords.map(coord => [coord[1], coord[0]])
+          coordinates: routeCoords
         },
         legs: [{
           steps: [{
             distance: distance,
             duration: duration,
+            maneuver: {
+              instruction: `${profile === 'foot' ? 'Walk' : profile === 'cycling' ? 'Cycle' : 'Drive'} to destination`
+            },
             geometry: {
               type: 'LineString',
-              coordinates: coords.map(coord => [coord[1], coord[0]])
+              coordinates: routeCoords
+            }
+          }]
+        }]
+      }]
+    };
+  }         coordinates: coords.map(coord => [coord[1], coord[0]])
             }
           }]
         }]
