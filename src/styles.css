@@ -1380,6 +1380,30 @@ h3 img {
 
 /* Responsive Design */
 @media (max-width: 768px) {
+  #sidebar {
+    width: 100%;
+    height: auto;
+    position: relative;
+  }
+  #mapDiv {
+    left: 0;
+    top: auto;
+    width: 100%;
+    height: calc(100% - 360px);
+  }
+  #outline {
+    left: 0;
+    width: 100%;
+  }
+  #search-box {
+    left: 50%;
+    transform: translateX(-50%);
+    width: calc(100% - 20px);
+  }
+  #drawing-controls {
+    left: 50%;
+    transform: translateX(-50%);
+  }
   .filter-options {
     grid-template-columns: 1fr;
   }

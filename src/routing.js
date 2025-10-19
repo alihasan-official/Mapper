@@ -34,6 +34,7 @@ class NavigationRouter {
 
   // Full route calculation (point-to-point)
   async calculateFullRoute(origin, destination) {
+    // OSRM expects [lon, lat]
     const coords = [
       [origin.lng, origin.lat],
       [destination.lng, destination.lat]
@@ -49,6 +50,7 @@ class NavigationRouter {
     const geometry = routeData.routes[0].geometry;
     
     // Create route polyline
+    // geometry.coordinates are [lon, lat]; convert to Leaflet [lat, lon]
     const routePolyline = L.polyline(geometry.coordinates.map(coord => [coord[1], coord[0]]), {
       color: '#4890E8',
       weight: 6,
