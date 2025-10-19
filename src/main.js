@@ -437,12 +437,29 @@ $(document).ready(function(){
     try {
       const locationtype = $(this).attr('data-type');
       const markercolor = $(this).attr('data-color') || '#4890E8';
-      const center = map.getCenter();
+      const mapCenter = map.getCenter();
       const bounds = map.getBounds();
       const radius = Math.max(
-        center.distanceTo(bounds.getNorthEast()),
-        center.distanceTo(bounds.getSouthWest())
+        mapCenter.distanceTo(bounds.getNorthEast()),
+        mapCenter.distanceTo(bounds.getSouthWest())
       );
+
+      // Prefer user's origin input or geolocation for nearest sorting
+      let reference = { lat: mapCenter.lat, lng: mapCenter.lng };
+      const originText = $('#origin-input').val().trim();
+      if (originText) {
+        try {
+          const res = await navigationAPI.geocodeLocation(originText, 1);
+          if (res && res.length) {
+            reference = { lat: parseFloat(res[0].lat), lng: parseFloat(res[0].lon) };
+          }
+        } catch (_) {}
+      } else {
+        try {
+          const loc = await navigationAPI.getCurrentLocation();
+          reference = { lat: loc.lat, lng: loc.lng };
+        } catch (_) {}
+      }
 
       // Build filter sets by category
       const filterSets = {};
@@ -456,7 +473,7 @@ $(document).ready(function(){
       else if (locationtype === 'station') filterSets.public_transport = ['station','stop_position'];
       else filterSets.amenity = [locationtype];
 
-      const results = await navigationAPI.findNearestPlaces({ lat: center.lat, lng: center.lng }, radius, filterSets);
+      const results = await navigationAPI.findNearestPlaces(reference, radius, filterSets);
       if (!results.length) {
         showError('No nearby places found for selected category.');
         return;
@@ -472,12 +489,20 @@ $(document).ready(function(){
       results.slice(0, 20).forEach(place => {
         const marker = L.marker([place.lat, place.lng], { icon: marker_icon, pane: 'overlayPane', interactive: true }).addTo(map);
         marker.bindTooltip(
-          `<h1>${place.name}</h1><div class="shape-data"><h3><img src="assets/marker-small-icon.svg">${place.lat.toFixed(5)}, ${place.lng.toFixed(5)}</h3></div><div class="arrow-down"></div>`,
+          `<h1>${place.name}</h1><div class=\"shape-data\"><h3><img src=\"assets/marker-small-icon.svg\">${place.lat.toFixed(5)}, ${place.lng.toFixed(5)}</h3></div><div class=\"arrow-down\"></div>`,
           { permanent: false, direction: 'top', interactive: false, bubblingMouseEvents: false, className: 'create-shape-flow', offset: L.point({ x: 0, y: -35 }) }
         );
+        marker.on('click', () => routeToHub(place.lat, place.lng, place.name));
         places.push({ id: '', place_id: place.id, name: place.name, desc: '', lat: place.lat, lng: place.lng, trigger: marker, completed: true, marker: marker, m_type: locationtype, type: 'marker', color: markercolor });
         place_ids.push(place.id);
       });
+
+      // Auto-route to nearest result
+      const nearest = results[0];
+      if (nearest) {
+        $('#destination-input').val(nearest.name);
+        await routeToHub(nearest.lat, nearest.lng, nearest.name);
+      }
     } catch (e) {
       console.error('Find nearby error:', e);
       showError('Failed to load nearby places. Please try again.');
@@ -1020,10 +1045,18 @@ $(document).ready(function(){
   async function loadTransportHubs() {
     if (!navigationAPI) return;
     try {
-      const center = map.getCenter();
+      const mapCenter = map.getCenter();
       const bounds = map.getBounds();
-      const radius = Math.max(center.distanceTo(bounds.getNorthEast()), center.distanceTo(bounds.getSouthWest()));
-      const hubs = await navigationAPI.findNearestTransportHubs({ lat: center.lat, lng: center.lng }, radius, ['bus_station', 'taxi', 'public_transport', 'metro']);
+      const radius = Math.max(mapCenter.distanceTo(bounds.getNorthEast()), mapCenter.distanceTo(bounds.getSouthWest()));
+
+      // Prefer user geolocation when available for distance sorting
+      let reference = { lat: mapCenter.lat, lng: mapCenter.lng };
+      try {
+        const loc = await navigationAPI.getCurrentLocation();
+        reference = { lat: loc.lat, lng: loc.lng };
+      } catch (_) { /* ignore */ }
+
+      const hubs = await navigationAPI.findNearestTransportHubs(reference, radius, ['bus_station', 'taxi', 'public_transport', 'metro']);
       transportHubs = hubs;
       displayTransportHubs(hubs);
     } catch (error) {
