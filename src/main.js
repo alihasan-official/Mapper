@@ -335,28 +335,16 @@ $(document).ready(function(){
   function switchColor(e) {
     e.stopPropagation();
     color = $(this).attr("data-color");
-    $("#inner-color").css({background:color});
-    toggleColor();
-  }
+    $("#inner-color").css({background:colo  // Enhanced search with autocomplete
+  let searchTimeout;
+  let currentSearchResults = [];
 
-  // Sanitizing input strings
-  function sanitize(string) {
-    const map = {
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        '"': '&quot;',
-        "'": '&#x27;',
-        "/": '&#x2F;',
-    };
-    const reg = /[&<>"'/]/ig;
-    return string.replace(reg, (match)=>(map[match]));
-  }
-
-  // Enhanced search with autocomplete
   function search() {
     const query = sanitize($("#search-input").val());
-    if (!query.trim()) return;
+    if (!query.trim()) {
+      hideSearchSuggestions();
+      return;
+    }
 
     // Use the new API for geocoding
     if (navigationAPI) {
@@ -368,6 +356,8 @@ $(document).ready(function(){
           // Add marker for search result
           const marker = L.marker([result.lat, result.lon]).addTo(map);
           marker.bindPopup(`<b>${result.display_name}</b>`).openPopup();
+          
+          hideSearchSuggestions();
         }
       }).catch(error => {
         console.error('Search error:', error);
@@ -375,6 +365,7 @@ $(document).ready(function(){
         $.get('https://nominatim.openstreetmap.org/search?q='+query+'&format=json', function(data) {
           if (data && data.length > 0) {
             map.panTo(new L.LatLng(data[0].lat, data[0].lon));
+            hideSearchSuggestions();
           }
         });
       });
@@ -383,34 +374,259 @@ $(document).ready(function(){
       $.get('https://nominatim.openstreetmap.org/search?q='+query+'&format=json', function(data) {
         if (data && data.length > 0) {
           map.panTo(new L.LatLng(data[0].lat, data[0].lon));
+          hideSearchSuggestions();
         }
       });
     }
   }
 
-  // Find nearby
+  // Enhanced search with autocomplete suggestions
+  function handleSearchInput() {
+    const query = sanitize($("#search-input").val());
+    
+    // Clear previous timeout
+    if (searchTimeout) {
+      clearTimeout(searchTimeout);
+    }
+
+    if (!query.trim()) {
+      hideSearchSuggestions();
+      return;
+    }
+
+    // Debounce search requests
+    searchTimeout = setTimeout(() => {
+      performSearchSuggestions(query);
+    }, 300);
+  }
+
+  async function performSearchSuggestions(query) {
+    try {
+      if (!navigationAPI) return;
+
+      const results = await navigationAPI.geocodeLocation(query, 8);
+      currentSearchResults = results || [];
+      displaySearchSuggestions(currentSearchResults);
+    } catch (error) {
+      console.error('Search suggestions error:', error);
+      hideSearchSuggestions();
+    }
+  }
+
+  function displaySearchSuggestions(results) {
+    const container = $('#search-suggestions');
+    container.remove(); // Remove existing suggestions
+
+    if (!results || results.length === 0) {
+      return;
+    }
+
+    const suggestionsHtml = `
+      <div id="search-suggestions" class="search-suggestions">
+        ${results.map((result, index) => `
+          <div class="search-suggestion" data-index="${index}">
+            <span class="suggestion-icon">📍</span>
+            <span class="suggestion-text">${result.display_name}</span>
+            <span class="suggestion-type">${getLocationType(result)}</span>
+          </div>
+        `).join('')}
+      </div>
+    `;
+
+    $('#search-box').append(suggestionsHtml);
+
+    // Add click handlers
+    $('.search-suggestion').on('click', function() {
+      const index = $(this).data('index');
+      selectSearchResult(currentSearchResults[index]);
+    });
+  }
+
+  function hideSearchSuggestions() {
+    $('#search-suggestions').remove();
+  }
+
+  function selectSearchResult(result) {
+    if (!result) return;
+
+    $('#search-input').val(result.display_name);
+    hideSearchSuggestions();
+    
+    map.panTo(new L.LatLng(result.lat, result.lon), 16);
+    
+    // Add marker for search result
+    const marker = L.marker([result.lat, result.lon]).addTo(map);
+    marker.bindPopup(`<b>${result.display_name}</b>`).openPopup();
+  }
+
+  function getLocationType(result) {
+    if (result.type === 'amenity') return result.amenity || 'Location';
+    if (result.type === 'tourism') return 'Tourist Attraction';
+    if (result.type === 'shop') return 'Shop';
+    if (result.type === 'restaurant') return 'Restaurant';
+    if (result.type === 'hotel') return 'Hotel';
+    if (result.type === 'station') return 'Station';
+    return 'Location';
+  }
+            map.panTo(new L.LatLng(data[  // Enhanced Find nearby function
   function findNearby() {
-    var locationtype = $(this).attr("data-type");
-    var markercolor = $(this).attr("data-color");
-    var coordinates = map.getBounds().getNorthWest().lng+','+map.getBounds().getNorthWest().lat+','+map.getBounds().getSouthEast().lng+','+map.getBounds().getSouthEast().lat;
+    const locationtype = $(this).attr("data-type");
+    const markercolor = $(this).attr("data-color");
+    const others = $(this).attr("data-others");
+    const bounds = map.getBounds();
+    const coordinates = `${bounds.getNorthWest().lng},${bounds.getNorthWest().lat},${bounds.getSouthEast().lng},${bounds.getSouthEast().lat}`;
 
-    // Call Nominatim API to get places nearby the current view, of the amenity that the user has selected
-    $.get('https://nominatim.openstreetmap.org/search?viewbox='+coordinates+'&format=geocodejson&limit=20&bounded=1&amenity='+locationtype+'&exclude_place_ids='+JSON.stringify(place_ids), function(data) {
-      // Custom marker icon depending on the amenity
-      var marker_icon = L.icon({
-        iconUrl: 'assets/'+locationtype+'-marker.svg',
-        iconSize:     [30, 30],
-        iconAnchor:   [15, 30],
-        shadowAnchor: [4, 62],
-        popupAnchor:  [-3, -76]
+    // Show loading state
+    const button = $(this);
+    const originalHtml = button.html();
+    button.html('<div class="spinner" style="width: 16px; height: 16px; margin: 0 auto;"></div>');
+    button.prop('disabled', true);
+
+    // Clear existing markers of this type
+    clearNearbyMarkers(locationtype);
+
+    // Build amenity query
+    let amenityQuery = locationtype;
+    if (others) {
+      const otherTypes = others.split(',');
+      amenityQuery = [locationtype, ...otherTypes].join('|');
+    }
+
+    // Call Nominatim API with enhanced parameters
+    const url = `https://nominatim.openstreetmap.org/search?viewbox=${coordinates}&format=geocodejson&limit=30&bounded=1&amenity=${amenityQuery}&exclude_place_ids=${JSON.stringify(place_ids)}`;
+    
+    $.get(url)
+      .done(function(data) {
+        if (data && data.features && data.features.length > 0) {
+          // Custom marker icon depending on the amenity
+          const marker_icon = L.icon({
+            iconUrl: `assets/${locationtype}-marker.svg`,
+            iconSize: [30, 30],
+            iconAnchor: [15, 30],
+            shadowAnchor: [4, 62],
+            popupAnchor: [-3, -76]
+          });
+
+          data.features.forEach(function(place) {
+            if (place.geometry && place.geometry.coordinates && place.properties && place.properties.geocoding) {
+              // Create a marker for the place
+              const marker = L.marker([place.geometry.coordinates[1], place.geometry.coordinates[0]], {
+                icon: marker_icon, 
+                pane: "overlayPane", 
+                interactive: true
+              }).addTo(map);
+
+              // Calculate distance from map center
+              const center = map.getCenter();
+              const distance = navigationAPI ? 
+                navigationAPI.calculateDistance(center.lat, center.lng, place.geometry.coordinates[1], place.geometry.coordinates[0]) * 1000 : 0;
+              const formattedDistance = distance >= 1000 ? 
+                `${(distance / 1000).toFixed(1)} km` : 
+                `${Math.round(distance)} m`;
+
+              // Create a popup with information about the place
+              const popupContent = `
+                <div class="place-popup">
+                  <h3>${place.properties.geocoding.name}</h3>
+                  <div class="place-details">
+                    <div class="place-coordinates">
+                      <img src="assets/marker-small-icon.svg" style="width: 12px; height: 12px; margin-right: 4px;">
+                      ${place.geometry.coordinates[1].toFixed(5)}, ${place.geometry.coordinates[0].toFixed(5)}
+                    </div>
+                    <div class="place-distance">${formattedDistance}</div>
+                  </div>
+                  <div class="place-actions">
+                    <button class="save-button-place" data-id="${place.properties.geocoding.place_id}">Save</button>
+                    <button class="cancel-button-place" data-id="${place.properties.geocoding.place_id}">Cancel</button>
+                  </div>
+                </div>
+              `;
+
+              marker.bindTooltip(popupContent, {
+                permanent: false, 
+                direction: "top", 
+                interactive: true, 
+                bubblingMouseEvents: false, 
+                className: "place-tooltip", 
+                offset: L.point({x: 0, y: -35})
+              });
+
+              // Add to places array
+              places.push({
+                id: "", 
+                place_id: place.properties.geocoding.place_id, 
+                name: place.properties.geocoding.name, 
+                desc: "", 
+                lat: place.geometry.coordinates[1], 
+                lng: place.geometry.coordinates[0], 
+                trigger: marker, 
+                completed: true, 
+                marker: marker, 
+                m_type: locationtype, 
+                type: "marker", 
+                color: markercolor,
+                distance: formattedDistance
+              });
+              place_ids.push(place.properties.geocoding.place_id);
+            }
+          });
+
+          // Show success message
+          showSuccess(`Found ${data.features.length} ${locationtype} locations nearby`);
+        } else {
+          showError(`No ${locationtype} locations found in this area. Try zooming out or moving to a different location.`);
+        }
+      })
+      .fail(function(xhr, status, error) {
+        console.error('Error finding nearby places:', error);
+        showError(`Failed to find ${locationtype} locations. Please try again.`);
+      })
+      .always(function() {
+        // Restore button state
+        button.html(originalHtml);
+        button.prop('disabled', false);
       });
-      data.features.forEach(function(place){
-        // Create a marker for the place
-        var marker = L.marker([place.geometry.coordinates[1], place.geometry.coordinates[0]], {icon:marker_icon, pane:"overlayPane", interactive:true}).addTo(map);
+  }
 
-        // Create a popup with information about the place
-        marker.bindTooltip('<h1>'+place.properties.geocoding.name+'</h1><div class="shape-data"><h3><img src="assets/marker-small-icon.svg">'+place.geometry.coordinates[1].toFixed(5)+', '+place.geometry.coordinates[0].toFixed(5)+'</h3></div><div class="arrow-down"></div>', {permanent: false, direction:"top", interactive:false, bubblingMouseEvents:false, className:"create-shape-flow", offset: L.point({x: 0, y: -35})});
-        places.push({id: "", place_id:place.properties.geocoding.place_id, name:place.properties.geocoding.name, desc:"", lat:place.geometry.coordinates[1], lng:place.geometry.coordinates[0], trigger:marker, completed:true, marker:marker, m_type:locationtype, type:"marker", color:markercolor});
+  function clearNearbyMarkers(type) {
+    // Remove existing markers of the same type
+    places = places.filter(place => {
+      if (place.m_type === type && place.marker) {
+        map.removeLayer(place.marker);
+        return false;
+      }
+      return true;
+    });
+  }
+
+  function showSuccess(message) {
+    // Remove any existing messages
+    $('.success-message').remove();
+    
+    const successHtml = `
+      <div class="success-message" style="
+        background: #e8f5e8; 
+        color: #2e7d32; 
+        padding: 12px; 
+        margin: 10px 0; 
+        border-radius: 5px; 
+        border-left: 4px solid #2e7d32;
+        font-family: Inter;
+        font-size: 14px;
+      ">
+        <strong>Success:</strong> ${message}
+      </div>
+    `;
+    
+    $('#navigation-section .navigation-controls').after(successHtml);
+    
+    // Auto-remove after 5 seconds
+    setTimeout(() => {
+      $('.success-message').fadeOut(500, function() {
+        $(this).remove();
+      });
+    }, 5000);
+  }   places.push({id: "", place_id:place.properties.geocoding.place_id, name:place.properties.geocoding.name, desc:"", lat:place.geometry.coordinates[1], lng:place.geometry.coordinates[0], trigger:marker, completed:true, marker:marker, m_type:locationtype, type:"marker", color:markercolor});
         place_ids.push(place.properties.geocoding.place_id);
       });
     });
@@ -730,26 +946,7 @@ $(document).ready(function(){
       map.setView([location.lat, location.lng], 16);
 
     } catch (error) {
-      console.error('Error getting current location:', error);
-      
-      let errorMessage = 'Unable to get current location. ';
-      if (error.message.includes('not supported')) {
-        errorMessage += 'Your browser does not support location services.';
-      } else if (error.message.includes('permission')) {
-        errorMessage += 'Please allow location access and try again.';
-      } else if (error.message.includes('timeout')) {
-        errorMessage += 'Location request timed out. Please try again.';
-      } else {
-        errorMessage += 'Please enter your location manually.';
-      }
-      
-      showError(errorMessage);
-    } finally {
-      button.text(originalText).prop('disabled', false);
-    }
-  }
-
-  async function calculateRoute() {
+      console.error('Error gett  async function calculateRoute() {
     const originText = $('#origin-input').val().trim();
     const destinationText = $('#destination-input').val().trim();
     
@@ -774,38 +971,41 @@ $(document).ready(function(){
         throw new Error('Please enter more specific location names.');
       }
 
-      // Geocode origin and destination with timeout
-      const geocodePromise = Promise.all([
-        navigationAPI.geocodeLocation(originText, 1),
-        navigationAPI.geocodeLocation(destinationText, 1)
-      ]);
+      let origin, destination;
 
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Location search timed out. Please try again.')), 15000)
-      );
+      // Check if we have cached coordinates from autocomplete
+      const originCoords = $('#origin-input').data('coordinates');
+      const destCoords = $('#destination-input').data('coordinates');
 
-      const [originResults, destinationResults] = await Promise.race([
-        geocodePromise,
-        timeoutPromise
-      ]);
-
-      if (!originResults || !originResults.length) {
-        throw new Error(`Could not find origin: "${originText}". Please try a different location.`);
+      if (originCoords && originCoords.lat && originCoords.lng) {
+        origin = originCoords;
+        console.log('Using cached origin coordinates:', origin);
+      } else {
+        // Geocode origin
+        const originResults = await navigationAPI.geocodeLocation(originText, 1);
+        if (!originResults || !originResults.length) {
+          throw new Error(`Could not find origin: "${originText}". Please try a different location.`);
+        }
+        origin = {
+          lat: parseFloat(originResults[0].lat),
+          lng: parseFloat(originResults[0].lon)
+        };
       }
 
-      if (!destinationResults || !destinationResults.length) {
-        throw new Error(`Could not find destination: "${destinationText}". Please try a different location.`);
+      if (destCoords && destCoords.lat && destCoords.lng) {
+        destination = destCoords;
+        console.log('Using cached destination coordinates:', destination);
+      } else {
+        // Geocode destination
+        const destinationResults = await navigationAPI.geocodeLocation(destinationText, 1);
+        if (!destinationResults || !destinationResults.length) {
+          throw new Error(`Could not find destination: "${destinationText}". Please try a different location.`);
+        }
+        destination = {
+          lat: parseFloat(destinationResults[0].lat),
+          lng: parseFloat(destinationResults[0].lon)
+        };
       }
-
-      const origin = {
-        lat: parseFloat(originResults[0].lat),
-        lng: parseFloat(originResults[0].lon)
-      };
-
-      const destination = {
-        lat: parseFloat(destinationResults[0].lat),
-        lng: parseFloat(destinationResults[0].lon)
-      };
 
       // Validate coordinates
       if (isNaN(origin.lat) || isNaN(origin.lng) || isNaN(destination.lat) || isNaN(destination.lng)) {
@@ -824,12 +1024,69 @@ $(document).ready(function(){
         transportTypes.push($(this).val());
       });
 
+      // Clear any existing routes
+      navigationRouter.clearRoutes();
+
       // Calculate route with timeout
       const routePromise = navigationRouter.calculateRoute(
         origin, 
         destination, 
         currentRouteMode, 
         transportTypes.length > 0 ? transportTypes : null
+      );
+
+      const routeTimeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Route calculation timed out. Please try again.')), 30000)
+      );
+
+      const routes = await Promise.race([
+        routePromise,
+        routeTimeoutPromise
+      ]);
+
+      if (!routes) {
+        throw new Error('No routes found. Please try different locations or transport options.');
+      }
+
+      // Display results
+      displayRouteResults(routes);
+
+      // Add markers for origin and destination
+      addRouteMarkers(origin, destination);
+
+    } catch (error) {
+      console.error('Route calculation error:', error);
+      showError(error.message || 'An unexpected error occurred. Please try again.');
+    } finally {
+      $('#route-loading').hide();
+      $('#calculate-route').prop('disabled', false);
+    }
+  }
+
+  function addRouteMarkers(origin, destination) {
+    // Remove existing route markers
+    $('.route-marker').remove();
+
+    // Add origin marker
+    const originIcon = L.divIcon({
+      html: '<div class="route-marker origin-marker">A</div>',
+      iconSize: [30, 30],
+      className: 'route-marker-icon'
+    });
+    const originMarker = L.marker([origin.lat, origin.lng], { icon: originIcon })
+      .addTo(map)
+      .bindPopup('Origin');
+
+    // Add destination marker
+    const destIcon = L.divIcon({
+      html: '<div class="route-marker destination-marker">B</div>',
+      iconSize: [30, 30],
+      className: 'route-marker-icon'
+    });
+    const destMarker = L.marker([destination.lat, destination.lng], { icon: destIcon })
+      .addTo(map)
+      .bindPopup('Destination');
+  }tTypes.length > 0 ? transportTypes : null
       );
 
       const routeTimeoutPromise = new Promise((_, reject) => 
@@ -1049,41 +1306,7 @@ $(document).ready(function(){
     }
   }
 
-  function cancelNearby() {
-    const placeId = $(this).attr('data-id');
-    const place = places.find(p => p.place_id === placeId);
-    
-    if (place) {
-      place.marker.remove();
-      places = places.filter(p => p.place_id !== placeId);
-      place_ids = place_ids.filter(id => id !== placeId);
-    }
-  }
-
-  function observationMode() {
-    const userId = $(this).attr('data-user');
-    const userName = $(this).attr('data-name');
-    
-    if (userId && userName) {
-      observing.status = true;
-      observing.id = userId;
-      $("#outline").addClass("observing");
-      $("#observing-name").text(`Observing ${userName}`);
-      
-      // Focus on user's cursor if available
-      const userCursor = cursors.find(c => c.user === userId);
-      if (userCursor) {
-        map.setView([userCursor.lat, userCursor.lng], map.getZoom());
-      }
-    }
-  }
-
-  function normalMode() {
-    stopObserving();
-    cursorTool();
-  }
-
-  // Enhanced loadTransportHubs function
+  function cancelN  // Enhanced loadTransportHubs function
   async function loadTransportHubs() {
     if (!navigationAPI) {
       console.warn('Navigation API not initialized');
@@ -1104,6 +1327,9 @@ $(document).ready(function(){
         ['bus_station', 'taxi', 'public_transport', 'metro']
       );
 
+      // Sort by distance from current map center
+      hubs.sort((a, b) => a.distance - b.distance);
+
       transportHubs = hubs;
       displayTransportHubs(hubs);
     } catch (error) {
@@ -1117,10 +1343,54 @@ $(document).ready(function(){
     }
   }
 
-  // Enhanced displayTransportHubs function
+  // Update transport hubs when map moves
+  function updateTransportHubsOnMapMove() {
+    // Debounce the update to avoid too many API calls
+    if (window.transportHubUpdateTimeout) {
+      clearTimeout(window.transportHubUpdateTimeout);
+    }
+    
+    window.transportHubUpdateTimeout = setTimeout(() => {
+      loadTransportHubs();
+    }, 1000); // Wait 1 second after map stops moving
+  }ansportHubs() {
+    if (!navigationA  // Enhanced displayTransportHubs function
   function displayTransportHubs(hubs) {
     const container = $('#transport-hubs-list');
     container.empty();
+
+    if (hubs.length === 0) {
+      container.html(`
+        <div style="text-align: center; color: var(--text-grey); padding: 20px;">
+          No transport hubs found in this area.
+          <br><small>Try zooming out or moving to a different location.</small>
+        </div>
+      `);
+      return;
+    }
+
+    // Show only the closest 20 hubs to avoid overwhelming the UI
+    const displayHubs = hubs.slice(0, 20);
+
+    displayHubs.forEach(hub => {
+      const distance = hub.distance * 1000; // Convert to meters
+      const formattedDistance = distance >= 1000 ? 
+        `${(distance / 1000).toFixed(1)} km` : 
+        `${Math.round(distance)} m`;
+
+      const hubElement = `
+        <div class="transport-hub-item" onclick="focusTransportHub(${hub.lat}, ${hub.lng})">
+          <div class="hub-icon">${getTransportIcon(hub.type)}</div>
+          <div class="hub-info">
+            <div class="hub-name">${hub.name}</div>
+            <div class="hub-type">${hub.type.replace('_', ' ').toUpperCase()}</div>
+          </div>
+          <div class="hub-distance">${formattedDistance}</div>
+        </div>
+      `;
+      container.append(hubElement);
+    });
+  }r.empty();
 
     if (hubs.length === 0) {
       container.html(`
@@ -1140,15 +1410,25 @@ $(document).ready(function(){
             <div class="hub-name">${hub.name}</div>
             <div class="hub-type">${hub.type.replace('_', ' ').toUpperCase()}</div>
           </div>
-          <div class="hub-distance">${navigationRouter ? navigationRouter.formatDistance(hub.distance * 1000) : (hub.distance * 1000).toFixed(0) + 'm'}</div>
-        </div>
-      `;
-      container.append(hubElement);
-    });
+          <div clas  // Filter transport hubs by type
+  function filterTransportHubs() {
+    const selectedType = $('#hub-type-filter').val();
+    
+    if (selectedType === 'all') {
+      displayTransportHubs(transportHubs);
+    } else {
+      const filteredHubs = transportHubs.filter(hub => hub.type === selectedType);
+      displayTransportHubs(filteredHubs);
+    }
   }
 
-  // Enhanced addTransportHub function
-  function addTransportHub() {
+  // Make functions globally available
+  window.toggleRouteDetails = toggleRouteDetails;
+  window.focusTransportHub = focusTransportHub;
+  window.saveNearby = saveNearby;
+  window.cancelNearby = cancelNearby;
+  window.observationMode = observationMode;
+  window.normalMode = normalMode;) {
     // Switch to marker tool for adding transport hubs
     markerTool();
     
@@ -1200,10 +1480,10 @@ $(document).ready(function(){
       startDrawing(lat,lng);
     }
   });
-  map.addEventListener('mouseup', (event) => {
-    mousedown = false;
-  })
-  map.addEventListener('mousemove', (event) => {
+  map.addEventList  map.addEventListener('moveend', (event) => {
+    dragging = false;
+    updateTransportHubsOnMapMove();
+  });Listener('mousemove', (event) => {
     // Get cursor coordinates and save them locally
     let lat = Math.round(event.latlng.lat * 100000) / 100000;
     let lng = Math.round(event.latlng.lng * 100000) / 100000;
@@ -1362,9 +1642,130 @@ $(document).ready(function(){
   $(document).on("mouseup", "#map-name", focusMapName);
   $(document).on("focusout", "#map-name", stopEditingMapName);
   $(document).on("mousedown", "#map-description", editMapDescription);
-  $(document).on("mouseup", "#map-description", focusMapDescription);
-  $(document).on("focusout", "#map-description", stopEditingMapDescription);
-  $(document).on("click", "#hide-annotations", toggleAnnotations);
+   // Search automatically when focused & pressing enter
+  $(document).on("keydown", "#search-input", function(e){
+    if (e.key === "Enter") {
+      search();
+    } else if (e.key === "Escape") {
+      hideSearchSuggestions();
+    }
+  });
+
+  // Handle search input for autocomplete
+  $(document).on("input", "#search-input", handleSearchInput);
+  $(document).on("focus", "#search-input", function() {
+    const query = $(this).val();
+    if (query.trim()) {
+      handleSearchInput();
+    }
+  });
+
+  // Handle From/To input fields for autocomplete
+  $(document).on("input", "#origin-input, #destination-input", function() {
+    const query = sanitize($(this).val());
+    if (query.trim()) {
+      handleLocationInput($(this), query);
+    } else {
+      hideLocationSuggestions($(this));
+    }
+  });
+
+  $(document).on("focus", "#origin-input, #destination-input", function() {
+    const query = $(this).val();
+    if (query.trim()) {
+      handleLocationInput($(this), query);
+    }
+  });
+
+  // Hide suggestions when clicking outside
+  $(document).on("click", function(e) {
+    if (!$(e.target).closest('#search-box').length) {
+      hideSearchSuggestions();
+    }
+    if (!$(e.target).closest('.input-group').length) {
+      hideAllLocationSuggestions();
+    }
+  });
+
+  // Enhanced location input handling
+  let locationSearchTimeout;
+  let currentLocationResults = {};
+
+  function handleLocationInput(inputElement, query) {
+    const inputId = inputElement.attr('id');
+    
+    // Clear previous timeout
+    if (locationSearchTimeout) {
+      clearTimeout(locationSearchTimeout);
+    }
+
+    // Debounce search requests
+    locationSearchTimeout = setTimeout(() => {
+      performLocationSearch(inputElement, query);
+    }, 300);
+  }
+
+  async function performLocationSearch(inputElement, query) {
+    try {
+      if (!navigationAPI) return;
+
+      const results = await navigationAPI.geocodeLocation(query, 6);
+      currentLocationResults[inputElement.attr('id')] = results || [];
+      displayLocationSuggestions(inputElement, currentLocationResults[inputElement.attr('id')]);
+    } catch (error) {
+      console.error('Location search error:', error);
+      hideLocationSuggestions(inputElement);
+    }
+  }
+
+  function displayLocationSuggestions(inputElement, results) {
+    const inputId = inputElement.attr('id');
+    const containerId = `suggestions-${inputId}`;
+    
+    // Remove existing suggestions
+    $(`#${containerId}`).remove();
+
+    if (!results || results.length === 0) {
+      return;
+    }
+
+    const suggestionsHtml = `
+      <div id="${containerId}" class="search-suggestions" style="position: absolute; top: 100%; left: 0; right: 0; z-index: 10000;">
+        ${results.map((result, index) => `
+          <div class="search-suggestion" data-index="${index}">
+            <span class="suggestion-icon">📍</span>
+            <span class="suggestion-text">${result.display_name}</span>
+            <span class="suggestion-type">${getLocationType(result)}</span>
+          </div>
+        `).join('')}
+      </div>
+    `;
+
+    inputElement.closest('.input-group').append(suggestionsHtml);
+
+    // Add click handlers
+    $(`#${containerId} .search-suggestion`).on('click', function() {
+      const index = $(this).data('index');
+      selectLocationResult(inputElement, results[index]);
+    });
+  }
+
+  function hideLocationSuggestions(inputElement) {
+    const inputId = inputElement.attr('id');
+    $(`#suggestions-${inputId}`).remove();
+  }
+
+  function hideAllLocationSuggestions() {
+    $('[id^="suggestions-"]').remove();
+  }
+
+  function select  // Navigation event handlers
+  $(document).on("click", "#full-route-mode", toggleRouteMode);
+  $(document).on("click", "#local-route-mode", toggleRouteMode);
+  $(document).on("click", "#use-current-location", useCurrentLocation);
+  $(document).on("click", "#calculate-route", calculateRoute);
+  $(document).on("click", "#add-transport-hub", addTransportHub);
+  $(document).on("change", "#hub-type-filter", filterTransportHubs);ions);
   $(document).on("click", "#location-control", targetLiveLocation);
   $(document).on("click", ".find-nearby", findNearby);
   $(document).on("click", ".save-button-place", saveNearby);
