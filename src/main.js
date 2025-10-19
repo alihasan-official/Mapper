@@ -77,8 +77,7 @@ $(document).ready(function(){
 
       console.log('Navigation system initialized successfully');
       
-      // Show status indicator
-      $('#system-status').show();
+      // No status placeholder UI; log readiness instead
       
       // Test API connectivity
       testAPIConnectivity();
@@ -388,32 +387,101 @@ $(document).ready(function(){
     }
   }
 
-  // Find nearby
-  function findNearby() {
-    var locationtype = $(this).attr("data-type");
-    var markercolor = $(this).attr("data-color");
-    var coordinates = map.getBounds().getNorthWest().lng+','+map.getBounds().getNorthWest().lat+','+map.getBounds().getSouthEast().lng+','+map.getBounds().getSouthEast().lat;
+  // Autocomplete suggestions for search and origin/destination inputs
+  let suggestionTimer = null;
+  async function handleAutocomplete(inputSelector, onPick) {
+    clearTimeout(suggestionTimer);
+    const q = sanitize($(inputSelector).val());
+    const $input = $(inputSelector);
+    let $list = $input.siblings('.search-suggestions');
+    if (!q.trim()) {
+      $list.remove();
+      return;
+    }
 
-    // Call Nominatim API to get places nearby the current view, of the amenity that the user has selected
-    $.get('https://nominatim.openstreetmap.org/search?viewbox='+coordinates+'&format=geocodejson&limit=20&bounded=1&amenity='+locationtype+'&exclude_place_ids='+JSON.stringify(place_ids), function(data) {
-      // Custom marker icon depending on the amenity
-      var marker_icon = L.icon({
-        iconUrl: 'assets/'+locationtype+'-marker.svg',
-        iconSize:     [30, 30],
-        iconAnchor:   [15, 30],
-        shadowAnchor: [4, 62],
-        popupAnchor:  [-3, -76]
-      });
-      data.features.forEach(function(place){
-        // Create a marker for the place
-        var marker = L.marker([place.geometry.coordinates[1], place.geometry.coordinates[0]], {icon:marker_icon, pane:"overlayPane", interactive:true}).addTo(map);
+    suggestionTimer = setTimeout(async () => {
+      try {
+        const results = await navigationAPI.geocodeLocation(q, 5);
+        if (!$list.length) {
+          $list = $('<div class="search-suggestions"></div>');
+          $input.after($list);
+        } else {
+          $list.empty();
+        }
+        (results || []).forEach(item => {
+          const $row = $(`
+            <div class="search-suggestion">
+              <span class="suggestion-icon">📍</span>
+              <span class="suggestion-text"></span>
+            </div>
+          `);
+          $row.find('.suggestion-text').text(item.display_name || `${item.lat}, ${item.lon}`);
+          $row.on('click', () => {
+            $input.val(item.display_name || `${item.lat}, ${item.lon}`);
+            $list.remove();
+            if (onPick) onPick(item);
+          });
+          $list.append($row);
+        });
+        if ((results || []).length === 0) {
+          $list.remove();
+        }
+      } catch (e) {
+        $list && $list.remove();
+      }
+    }, 250);
+  }
 
-        // Create a popup with information about the place
-        marker.bindTooltip('<h1>'+place.properties.geocoding.name+'</h1><div class="shape-data"><h3><img src="assets/marker-small-icon.svg">'+place.geometry.coordinates[1].toFixed(5)+', '+place.geometry.coordinates[0].toFixed(5)+'</h3></div><div class="arrow-down"></div>', {permanent: false, direction:"top", interactive:false, bubblingMouseEvents:false, className:"create-shape-flow", offset: L.point({x: 0, y: -35})});
-        places.push({id: "", place_id:place.properties.geocoding.place_id, name:place.properties.geocoding.name, desc:"", lat:place.geometry.coordinates[1], lng:place.geometry.coordinates[0], trigger:marker, completed:true, marker:marker, m_type:locationtype, type:"marker", color:markercolor});
-        place_ids.push(place.properties.geocoding.place_id);
+  // Find nearby via Overpass using NavigationAPI
+  async function findNearby() {
+    try {
+      const locationtype = $(this).attr('data-type');
+      const markercolor = $(this).attr('data-color') || '#4890E8';
+      const center = map.getCenter();
+      const bounds = map.getBounds();
+      const radius = Math.max(
+        center.distanceTo(bounds.getNorthEast()),
+        center.distanceTo(bounds.getSouthWest())
+      );
+
+      // Build filter sets by category
+      const filterSets = {};
+      if (locationtype === 'supermarket') filterSets.amenity = ['supermarket'];
+      else if (locationtype === 'fashion') filterSets.shop = ['clothes','fashion','mall','shoes','department_store','electronics'];
+      else if (locationtype === 'restaurant') filterSets.amenity = ['restaurant','fast_food','cafe','food_court'];
+      else if (locationtype === 'bar') filterSets.amenity = ['bar','pub','biergarten'];
+      else if (locationtype === 'atm') filterSets.amenity = ['atm','bank','post_office','police','library'];
+      else if (locationtype === 'hospital') filterSets.amenity = ['hospital','clinic','pharmacy','doctors','dentist'];
+      else if (locationtype === 'hotel') filterSets.tourism = ['hotel','hostel','guest_house','motel'];
+      else if (locationtype === 'station') filterSets.public_transport = ['station','stop_position'];
+      else filterSets.amenity = [locationtype];
+
+      const results = await navigationAPI.findNearestPlaces({ lat: center.lat, lng: center.lng }, radius, filterSets);
+      if (!results.length) {
+        showError('No nearby places found for selected category.');
+        return;
+      }
+
+      const marker_icon = L.icon({
+        iconUrl: `assets/${locationtype}-marker.svg`,
+        iconSize: [30, 30],
+        iconAnchor: [15, 30],
+        popupAnchor: [-3, -30]
       });
-    });
+
+      results.slice(0, 20).forEach(place => {
+        const marker = L.marker([place.lat, place.lng], { icon: marker_icon, pane: 'overlayPane', interactive: true }).addTo(map);
+        marker.bindTooltip(
+          `<h1>${place.name}</h1><div class="shape-data"><h3><img src="assets/marker-small-icon.svg">${place.lat.toFixed(5)}, ${place.lng.toFixed(5)}</h3></div><div class="arrow-down"></div>`,
+          { permanent: false, direction: 'top', interactive: false, bubblingMouseEvents: false, className: 'create-shape-flow', offset: L.point({ x: 0, y: -35 }) }
+        );
+        places.push({ id: '', place_id: place.id, name: place.name, desc: '', lat: place.lat, lng: place.lng, trigger: marker, completed: true, marker: marker, m_type: locationtype, type: 'marker', color: markercolor });
+        place_ids.push(place.id);
+      });
+    } catch (e) {
+      console.error('Find nearby error:', e);
+      showError('Failed to load nearby places. Please try again.');
+    }
   }
 
   // Mock user for compatibility (no authentication required)
@@ -951,21 +1019,11 @@ $(document).ready(function(){
 
   async function loadTransportHubs() {
     if (!navigationAPI) return;
-
     try {
       const center = map.getCenter();
       const bounds = map.getBounds();
-      const radius = Math.max(
-        center.distanceTo(bounds.getNorthEast()),
-        center.distanceTo(bounds.getSouthWest())
-      );
-
-      const hubs = await navigationAPI.findNearestTransportHubs(
-        { lat: center.lat, lng: center.lng },
-        radius,
-        ['bus_station', 'taxi', 'public_transport']
-      );
-
+      const radius = Math.max(center.distanceTo(bounds.getNorthEast()), center.distanceTo(bounds.getSouthWest()));
+      const hubs = await navigationAPI.findNearestTransportHubs({ lat: center.lat, lng: center.lng }, radius, ['bus_station', 'taxi', 'public_transport', 'metro']);
       transportHubs = hubs;
       displayTransportHubs(hubs);
     } catch (error) {
@@ -984,7 +1042,7 @@ $(document).ready(function(){
 
     hubs.forEach(hub => {
       const hubElement = `
-        <div class="transport-hub-item" onclick="focusTransportHub(${hub.lat}, ${hub.lng})">
+        <div class="transport-hub-item" data-lat="${hub.lat}" data-lng="${hub.lng}" data-name="${hub.name}" onclick="focusTransportHub(${hub.lat}, ${hub.lng})">
           <div class="hub-icon">${getTransportIcon(hub.type)}</div>
           <div class="hub-info">
             <div class="hub-name">${hub.name}</div>
@@ -1017,6 +1075,38 @@ $(document).ready(function(){
     // For now, we'll use the existing marker tool
     markerTool();
     alert('Click on the map to add a transport hub. You can then edit its details.');
+  }
+
+  // Route to a selected transport hub from origin (or current location)
+  async function routeToHub(lat, lng, name) {
+    try {
+      const destination = { lat: parseFloat(lat), lng: parseFloat(lng) };
+      let originText = $('#origin-input').val().trim();
+      let origin;
+      if (originText) {
+        const res = await navigationAPI.geocodeLocation(originText, 1);
+        if (res && res.length) {
+          origin = { lat: parseFloat(res[0].lat), lng: parseFloat(res[0].lon) };
+        }
+      }
+      if (!origin) {
+        try {
+          const loc = await navigationAPI.getCurrentLocation();
+          origin = { lat: loc.lat, lng: loc.lng };
+          $('#origin-input').val(`${loc.lat.toFixed(4)}, ${loc.lng.toFixed(4)}`);
+        } catch (_) {
+          const c = map.getCenter();
+          origin = { lat: c.lat, lng: c.lng };
+        }
+      }
+
+      const routes = await navigationRouter.calculateRoute(origin, destination, currentRouteMode);
+      displayRouteResults(routes);
+      $('#destination-input').val(name || `${destination.lat.toFixed(4)}, ${destination.lng.toFixed(4)}`);
+    } catch (e) {
+      console.error('Failed to route to hub:', e);
+      showError('Failed to calculate route to selected hub.');
+    }
   }
 
   // Missing function definitions that were referenced but not implemented
@@ -1171,6 +1261,7 @@ $(document).ready(function(){
   // Make functions globally available
   window.toggleRouteDetails = toggleRouteDetails;
   window.focusTransportHub = focusTransportHub;
+  window.routeToHub = routeToHub;
   window.saveNearby = saveNearby;
   window.cancelNearby = cancelNearby;
   window.observationMode = observationMode;
@@ -1372,6 +1463,23 @@ $(document).ready(function(){
   $(document).on("click", "#more-vertical", toggleMoreMenu);
   $(document).on("click", "#geojson", exportGeoJSON);
   $(document).on("click", "#search-box img", search);
+  // Route when selecting a transport hub item
+  $(document).on('click', '.transport-hub-item', function() {
+    const lat = parseFloat($(this).attr('data-lat'));
+    const lng = parseFloat($(this).attr('data-lng'));
+    const name = $(this).attr('data-name');
+    if (!isNaN(lat) && !isNaN(lng)) {
+      routeToHub(lat, lng, name);
+    }
+  });
+  $(document).on('input', '#search-input', () => handleAutocomplete('#search-input', (item) => {
+    map.panTo(new L.LatLng(item.lat, item.lon));
+  }));
+  $(document).on('input', '#origin-input', () => handleAutocomplete('#origin-input'));
+  $(document).on('input', '#destination-input', () => handleAutocomplete('#destination-input'));
+  $(document).on('blur', '#search-input, #origin-input, #destination-input', function() {
+    setTimeout(() => $(this).siblings('.search-suggestions').remove(), 250);
+  });
   $(document).on("click", "#share-button", showSharePopup);
   $(document).on("click", "#overlay", closeSharePopup);
   $(document).on("click", "#close-share", closeSharePopup);
@@ -1407,4 +1515,7 @@ $(document).ready(function(){
 
   // Get live location of the current user. Only if Geolocation is activated (local only)
   liveLocation();
+
+  // Re-sort and refresh hubs on map moveend
+  map.on('moveend', loadTransportHubs);
 });

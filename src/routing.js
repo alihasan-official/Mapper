@@ -49,6 +49,7 @@ class NavigationRouter {
     const geometry = routeData.routes[0].geometry;
     
     // Create route polyline
+    // OSRM geometry is lon,lat; convert to [lat, lng]
     const routePolyline = L.polyline(geometry.coordinates.map(coord => [coord[1], coord[0]]), {
       color: '#4890E8',
       weight: 6,
@@ -225,6 +226,7 @@ class NavigationRouter {
       distance: route.distance,
       duration: route.duration,
       geometry: geometry,
+      // Convert lon,lat to [lat,lng]
       coordinates: geometry.coordinates.map(coord => [coord[1], coord[0]])
     };
   }
