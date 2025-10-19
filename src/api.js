@@ -52,18 +52,14 @@ class NavigationAPI {
 
     for (const server of servers) {
       try {
-        const coordString = coords.map(coord => `${coord[1]},${coord[0]}`).join(';');
+        // OSRM expects coordinates in lon,lat order
+        const coordString = coords.map(coord => `${coord[0]},${coord[1]}`).join(';');
         const url = `${server}/route/v1/${profile}/${coordString}?overview=full&geometries=geojson&steps=true`;
         
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
         
-        const response = await fetch(url, {
-          signal: controller.signal,
-          headers: {
-            'User-Agent': 'MultiModalNavigation/1.0'
-          }
-        });
+        const response = await fetch(url, { signal: controller.signal });
         
         clearTimeout(timeoutId);
         
@@ -111,7 +107,8 @@ class NavigationAPI {
         duration: duration,
         geometry: {
           type: 'LineString',
-          coordinates: coords.map(coord => [coord[1], coord[0]])
+          // GeoJSON expects [lon, lat]
+          coordinates: coords
         },
         legs: [{
           steps: [{
@@ -119,7 +116,7 @@ class NavigationAPI {
             duration: duration,
             geometry: {
               type: 'LineString',
-              coordinates: coords.map(coord => [coord[1], coord[0]])
+              coordinates: coords
             }
           }]
         }]
@@ -166,8 +163,7 @@ out body;`;
         const response = await fetch(server, {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'User-Agent': 'MultiModalNavigation/1.0'
+            'Content-Type': 'application/x-www-form-urlencoded'
           },
           body: `data=${encodeURIComponent(query)}`,
           signal: controller.signal
@@ -199,6 +195,71 @@ out body;`;
     }
   }
 
+  // Generic Overpass API for arbitrary POI queries
+  // queryGroups: Array of { key: string, values: string[] }
+  async fetchOverpassPOI(bounds, queryGroups = []) {
+    const cacheKey = `overpass_poi_${bounds.join('_')}_${JSON.stringify(queryGroups)}`;
+    const cached = this.getCached(cacheKey);
+    if (cached) return cached;
+
+    await this.rateLimit();
+
+    const servers = [
+      'https://overpass-api.de/api/interpreter',
+      'https://lz4.overpass-api.de/api/interpreter',
+      'https://z.overpass-api.de/api/interpreter'
+    ];
+
+    for (const server of servers) {
+      try {
+        const [north, west, south, east] = bounds;
+
+        // Build union of node queries across groups and values
+        const groupQueries = queryGroups.map(group => {
+          const values = Array.isArray(group.values) ? group.values : [group.values];
+          return values.map(val => `node["${group.key}"="${val}"](bbox:${south},${west},${north},${east});`).join('\n');
+        }).join('\n');
+
+        const query = `[out:json][timeout:20];
+(
+  ${groupQueries}
+);
+out body;`;
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 20000);
+
+        const response = await fetch(server, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+          },
+          body: `data=${encodeURIComponent(query)}`,
+          signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          throw new Error(`Overpass API error: ${response.status}`);
+        }
+
+        const data = await response.json();
+        if (!data.elements) {
+          throw new Error('Invalid Overpass response');
+        }
+
+        this.setCache(cacheKey, data);
+        return data;
+      } catch (error) {
+        console.warn(`Overpass server ${server} failed:`, error.message);
+        if (server === servers[servers.length - 1]) {
+          return { elements: [] };
+        }
+      }
+    }
+  }
+
   // Nominatim Geocoding API
   async geocodeLocation(query, limit = 5) {
     const cacheKey = `geocode_${query}`;
@@ -210,11 +271,7 @@ out body;`;
     try {
       const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=${limit}&addressdetails=1`;
       
-      const response = await fetch(url, {
-        headers: {
-          'User-Agent': 'MultiModalNavigation/1.0'
-        }
-      });
+      const response = await fetch(url);
 
       if (!response.ok) {
         throw new Error(`Nominatim API error: ${response.status}`);
@@ -240,11 +297,7 @@ out body;`;
     try {
       const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1`;
       
-      const response = await fetch(url, {
-        headers: {
-          'User-Agent': 'MultiModalNavigation/1.0'
-        }
-      });
+      const response = await fetch(url);
 
       if (!response.ok) {
         throw new Error(`Nominatim API error: ${response.status}`);
