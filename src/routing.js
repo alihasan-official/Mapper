@@ -7,12 +7,28 @@ class NavigationRouter {
     this.api = api;
     this.currentRoutes = [];
     this.routeMode = 'full'; // 'full' or 'local'
-    this.transportTypes = ['bus', 'metro', 'taxi', 'rickshaw'];
-  }
-
-  // Main route calculation function
+    this.transportTypes = ['bus', 'metro', 'taxi', 'rickshaw  // Main route calculation function
   async calculateRoute(origin, destination, mode = 'full', transportTypes = null) {
     try {
+      // Validate inputs
+      if (!origin || !destination) {
+        throw new Error('Origin and destination are required');
+      }
+
+      if (!origin.lat || !origin.lng || !destination.lat || !destination.lng) {
+        throw new Error('Invalid origin or destination coordinates');
+      }
+
+      if (isNaN(origin.lat) || isNaN(origin.lng) || isNaN(destination.lat) || isNaN(destination.lng)) {
+        throw new Error('Coordinates must be valid numbers');
+      }
+
+      // Check if coordinates are within valid ranges
+      if (Math.abs(origin.lat) > 90 || Math.abs(origin.lng) > 180 || 
+          Math.abs(destination.lat) > 90 || Math.abs(destination.lng) > 180) {
+        throw new Error('Coordinates are outside valid range');
+      }
+
       this.routeMode = mode;
       if (transportTypes) {
         this.transportTypes = transportTypes;
@@ -28,6 +44,9 @@ class NavigationRouter {
       }
     } catch (error) {
       console.error('Route calculation error:', error);
+      throw error;
+    }
+  }
       throw error;
     }
   }

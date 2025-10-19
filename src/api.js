@@ -32,11 +32,7 @@ class NavigationAPI {
   setCache(key, data) {
     this.cache.set(key, {
       data: data,
-      timestamp: Date.now()
-    });
-  }
-
-  // OSRM Routing API with enhanced error handling and fallbacks
+      t  // OSRM Routing API with enhanced error handling and fallbacks
   async fetchOSRMRoute(coords, profile = 'driving') {
     const cacheKey = `osrm_${profile}_${coords.join('_')}`;
     const cached = this.getCached(cacheKey);
@@ -44,11 +40,26 @@ class NavigationAPI {
 
     await this.rateLimit();
 
+    // Validate coordinates
+    if (!coords || coords.length < 2) {
+      throw new Error('Invalid coordinates provided for routing');
+    }
+
+    for (const coord of coords) {
+      if (!Array.isArray(coord) || coord.length !== 2 || 
+          typeof coord[0] !== 'number' || typeof coord[1] !== 'number' ||
+          isNaN(coord[0]) || isNaN(coord[1])) {
+        throw new Error('Invalid coordinate format');
+      }
+    }
+
     // Try multiple OSRM servers for redundancy
     const servers = [
       'https://router.project-osrm.org',
       'https://routing.openstreetmap.de'
     ];
+
+    let lastError = null;
 
     for (const server of servers) {
       try {
@@ -56,7 +67,7 @@ class NavigationAPI {
         const url = `${server}/route/v1/${profile}/${coordString}?overview=full&geometries=geojson&steps=true`;
         
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+        const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
         
         const response = await fetch(url, {
           signal: controller.signal,
@@ -68,72 +79,99 @@ class NavigationAPI {
         clearTimeout(timeoutId);
         
         if (!response.ok) {
-          throw new Error(`OSRM API error: ${response.status}`);
+          throw new Error(`OSRM API error: ${response.status} ${response.statusText}`);
         }
         
         const data = await response.json();
         
-        if (data.code !== 'Ok') {
-          throw new Error(`OSRM routing error: ${data.message}`);
+        if (!data || data.code !== 'Ok') {
+          throw new Error(`OSRM routing error: ${data.message || 'Unknown routing error'}`);
+        }
+
+        if (!data.routes || data.routes.length === 0) {
+          throw new Error('No routes found for the given coordinates');
         }
 
         this.setCache(cacheKey, data);
         return data;
       } catch (error) {
+        lastError = error;
         console.warn(`OSRM server ${server} failed:`, error.message);
+        
+        // If it's the last server, we'll create a fallback
         if (server === servers[servers.length - 1]) {
-          // Last server failed, create fallback route
+          console.warn('All OSRM servers failed, creating fallback route');
           return this.createFallbackRoute(coords, profile);
         }
       }
     }
-  }
 
-  // Create fallback route when OSRM is unavailable
+    // This should never be reached, but just in case
+    throw lastError || new Error('All OSRM servers failed');
+  }        return this.createFallbackRoute(coords, profi  // Create fallback route when OSRM is unavailable
   createFallbackRoute(coords, profile) {
-    const [start, end] = coords;
-    const distance = this.calculateDistance(start[1], start[0], end[1], end[0]) * 1000; // meters
-    
-    // Estimate duration based on profile
-    const speeds = {
-      'driving': 50, // km/h
-      'foot': 5,
-      'cycling': 15
-    };
-    
-    const speed = speeds[profile] || 50;
-    const duration = (distance / 1000) / speed * 3600; // seconds
-    
-    return {
-      code: 'Ok',
-      routes: [{
-        distance: distance,
-        duration: duration,
-        geometry: {
-          type: 'LineString',
-          coordinates: coords.map(coord => [coord[1], coord[0]])
-        },
-        legs: [{
-          steps: [{
-            distance: distance,
-            duration: duration,
-            geometry: {
-              type: 'LineString',
-              coordinates: coords.map(coord => [coord[1], coord[0]])
-            }
+    try {
+      const [start, end] = coords;
+      
+      // Validate coordinates
+      if (!start || !end || start.length !== 2 || end.length !== 2) {
+        throw new Error('Invalid coordinates for fallback route');
+      }
+
+      const distance = this.calculateDistance(start[1], start[0], end[1], end[0]) * 1000; // meters
+      
+      // Estimate duration based on profile
+      const speeds = {
+        'driving': 50, // km/h
+        'foot': 5,
+        'cycling': 15
+      };
+      
+      const speed = speeds[profile] || 50;
+      const duration = Math.max((distance / 1000) / speed * 3600, 60); // At least 1 minute
+      
+      return {
+        code: 'Ok',
+        routes: [{
+          distance: distance,
+          duration: duration,
+          geometry: {
+            type: 'LineString',
+            coordinates: coords.map(coord => [coord[1], coord[0]])
+          },
+          legs: [{
+            steps: [{
+              distance: distance,
+              duration: duration,
+              geometry: {
+                type: 'LineString',
+                coordinates: coords.map(coord => [coord[1], coord[0]])
+              }
+            }]
           }]
         }]
-      }]
-    };
-  }
-
-  // Overpass API for transport amenities with enhanced error handling
+      };
+    } catch (error) {
+      console.error('Error creating fallback route:', error);
+      throw new Error('Unable to create fallback route');
+    }
+  }, coord[0]])
+            }
+           // Overpass API for transport amenities with enhanced error handling
   async fetchOverpassTransport(bounds, types = ['bus_station', 'taxi', 'public_transport']) {
     const cacheKey = `overpass_${bounds.join('_')}_${types.join('_')}`;
     const cached = this.getCached(cacheKey);
     if (cached) return cached;
 
     await this.rateLimit();
+
+    // Validate bounds
+    const [north, west, south, east] = bounds;
+    if (north <= south || east <= west || 
+        Math.abs(north) > 90 || Math.abs(south) > 90 || 
+        Math.abs(east) > 180 || Math.abs(west) > 180) {
+      throw new Error('Invalid bounding box coordinates');
+    }
 
     // Try multiple Overpass servers
     const servers = [
@@ -142,26 +180,30 @@ class NavigationAPI {
       'https://z.overpass-api.de/api/interpreter'
     ];
 
+    let lastError = null;
+
     for (const server of servers) {
       try {
-        const [north, west, south, east] = bounds;
-        
-        // Build Overpass QL query with timeout
+        // Build comprehensive Overpass QL query
         const amenityQueries = types.map(type => 
           `node["amenity"="${type}"](bbox:${south},${west},${north},${east});`
         ).join('\n');
         
-        const publicTransportQuery = `node["public_transport"](bbox:${south},${west},${north},${east});`;
+        const publicTransportQueries = [
+          `node["public_transport"="station"](bbox:${south},${west},${north},${east});`,
+          `node["public_transport"="stop_position"](bbox:${south},${west},${north},${east});`,
+          `node["highway"="bus_stop"](bbox:${south},${west},${north},${east});`
+        ].join('\n');
         
-        const query = `[out:json][timeout:15];
+        const query = `[out:json][timeout:20];
 (
   ${amenityQueries}
-  ${publicTransportQuery}
+  ${publicTransportQueries}
 );
 out body;`;
 
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 20000); // 20 second timeout
+        const timeoutId = setTimeout(() => controller.abort(), 25000); // 25 second timeout
 
         const response = await fetch(server, {
           method: 'POST',
@@ -176,23 +218,33 @@ out body;`;
         clearTimeout(timeoutId);
 
         if (!response.ok) {
-          throw new Error(`Overpass API error: ${response.status}`);
+          throw new Error(`Overpass API error: ${response.status} ${response.statusText}`);
         }
 
         const data = await response.json();
         
         // Validate response
-        if (!data.elements) {
-          throw new Error('Invalid Overpass response');
+        if (!data || !Array.isArray(data.elements)) {
+          throw new Error('Invalid Overpass response format');
         }
 
         this.setCache(cacheKey, data);
         return data;
       } catch (error) {
+        lastError = error;
         console.warn(`Overpass server ${server} failed:`, error.message);
+        
         if (server === servers[servers.length - 1]) {
           // All servers failed, return empty result
           console.warn('All Overpass servers failed, returning empty transport data');
+          return { elements: [] };
+        }
+      }
+    }
+
+    // This should never be reached, but just in case
+    throw lastError || new Error('All Overpass servers failed');
+  }rs failed, returning empty transport data');
           return { elements: [] };
         }
       }

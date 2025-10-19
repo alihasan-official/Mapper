@@ -1259,25 +1259,53 @@ h3 img {
 /* Transport Hubs Section */
 #transport-hubs-section {
   max-height: 300px;
-  overflow-y: auto;
+  overflo/* Map Route Styling */
+.route-line {
+  z-index: 1000;
 }
 
-.transport-hub-controls {
+.transport-hub-icon {
+  z-index: 1001;
+}
+
+.transport-hub-marker {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-bottom: 10px;
+  justify-content: center;
+  color: #FFF;
+  font-size: 14px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
 }
 
-.add-hub-btn {
-  padding: 6px 12px;
-  background: #5EBE86;
+/* Route Markers */
+.route-marker-icon {
+  z-index: 1002;
+}
+
+.route-marker {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: #FFF;
-  border: none;
-  border-radius: 5px;
-  font-family: Inter;
-  font-weight: 500;
-  font-size: 12px;
+  font-weight: bold;
+  font-size: 14px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+  border: 3px solid #FFF;
+}
+
+.origin-marker {
+  background: #5EBE86;
+}
+
+.destination-marker {
+  background: #E15F59;
+}ize: 12px;
   cursor: pointer;
   transition: opacity 0.2s ease;
 }
@@ -1290,19 +1318,236 @@ h3 img {
   padding: 6px 8px;
   border: 1px solid #E8E8E8;
   border-radius: 5px;
-  font-family: Inter;
-  font-size: 12px;
-  background: #FFF;
+  font-fam/* Responsive Design */
+@media (max-width: 768px) {
+  /* Sidebar adjustments */
+  #sidebar {
+    width: 100%;
+    height: auto;
+    position: relative;
+    border: none;
+    border-bottom: 1px solid #E8E8E8;
+  }
+
+  /* Map adjustments */
+  #mapDiv {
+    left: 0;
+    width: 100%;
+    height: calc(100vh - 400px);
+    min-height: 300px;
+  }
+
+  /* Search box adjustments */
+  #search-box {
+    width: calc(100% - 20px);
+    left: 10px;
+    transform: none;
+    top: 10px;
+  }
+
+  /* Drawing controls adjustments */
+  #drawing-controls {
+    left: 10px;
+    transform: none;
+    bottom: 10px;
+    width: calc(100% - 20px);
+    padding: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .tool {
+    margin: 5px;
+  }
+
+  /* Navigation controls adjustments */
+  .route-mode-toggle {
+    flex-direction: column;
+  }
+
+  .mode-btn {
+    border-radius: 5px;
+    margin-bottom: 5px;
+  }
+
+  .filter-options {
+    grid-template-columns: 1fr;
+  }
+  
+  .transport-hub-controls {
+    flex-direction: column;
+    gap: 8px;
+    align-items: stretch;
+  }
+  
+  .add-hub-btn {
+    text-align: center;
+  }
+
+  /* Service buttons adjustments */
+  table {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  th {
+    min-width: auto;
+    padding: 15px 10px;
+    font-size: 11px;
+  }
+
+  th img {
+    width: 20px;
+    height: 20px;
+  }
+
+  /* Right nav adjustments */
+  #right-nav {
+    right: 10px;
+    top: 10px;
+  }
+
+  #share-button {
+    padding: 8px 16px;
+    font-size: 12px;
+  }
+
+  /* Location and zoom controls */
+  #location-control {
+    right: 10px;
+    bottom: 60px;
+  }
+
+  #zoom-controls {
+    right: 10px;
+    bottom: 10px;
+  }
+
+  /* Annotation section adjustments */
+  #annotations-section {
+    height: 200px;
+  }
+
+  /* Route results adjustments */
+  .route-option {
+    margin-bottom: 8px;
+  }
+
+  .route-option-header {
+    padding: 10px;
+  }
+
+  .route-segments {
+    padding: 10px;
+  }
+
+  /* Transport hub items adjustments */
+  .transport-hub-item {
+    padding: 8px;
+    margin-bottom: 6px;
+  }
+
+  .hub-name {
+    font-size: 12px;
+  }
+
+  .hub-type {
+    font-size: 10px;
+  }
+
+  .hub-distance {
+    font-size: 10px;
+  }
+
+  /* Search suggestions adjustments */
+  .search-suggestions {
+    max-height: 150px;
+  }
+
+  .search-suggestion {
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+
+  /* Place popup adjustments */
+  .place-popup {
+    font-size: 12px;
+  }
+
+  .place-popup h3 {
+    font-size: 14px;
+    margin-bottom: 8px;
+  }
+
+  .place-actions button {
+    padding: 6px 12px;
+    font-size: 11px;
+  }
 }
 
-.transport-hub-item {
-  display: flex;
-  align-items: center;
-  padding: 10px;
-  border: 1px solid #E8E8E8;
-  border-radius: 5px;
-  margin-bottom: 8px;
-  transition: background-color 0.2s ease;
+@media (max-width: 480px) {
+  /* Extra small screens */
+  #sidebar {
+    height: auto;
+  }
+
+  #mapDiv {
+    height: calc(100vh - 500px);
+    min-height: 250px;
+  }
+
+  /* Service buttons - single column */
+  table {
+    grid-template-columns: 1fr;
+  }
+
+  th {
+    padding: 12px 8px;
+    font-size: 10px;
+  }
+
+  th img {
+    width: 18px;
+    height: 18px;
+  }
+
+  /* Drawing controls - smaller */
+  #drawing-controls {
+    padding: 8px;
+  }
+
+  .tool {
+    margin: 3px;
+  }
+
+  .tool img {
+    width: 20px;
+  }
+
+  /* Input adjustments */
+  .input-group input {
+    padding: 8px 35px 8px 10px;
+    font-size: 13px;
+  }
+
+  .location-btn {
+    right: 6px;
+    top: 24px;
+    font-size: 14px;
+  }
+
+  /* Button adjustments */
+  .calculate-btn {
+    padding: 10px;
+    font-size: 13px;
+  }
+
+  .mode-btn {
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+}
 }
 
 .transport-hub-item:hover {
@@ -1367,14 +1612,131 @@ h3 img {
 }
 
 .hub-popup h3 {
-  margin: 0 0 5px 0;
-  font-size: 14px;
-  color: var(--text-black);
+  margin: 0 0 5px 0;.suggestion-type {
+  color: var(--text-grey);
+  font-size: 11px;
+  margin-left: 8px;
 }
 
-.hub-popup p {
-  margin: 0;
+/* Place popup styling */
+.place-popup {
+  font-family: Inter;
+  min-width: 200px;
+}
+
+.place-popup h3 {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+  color: var(--text-black);
+  font-weight: 600;
+}
+
+.place-details {
+  margin-bottom: 10px;
+}
+
+.place-coordinates {
+  font-size: 11px;
+  color: var(--text-grey);
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+}
+
+.place-distance {
   font-size: 12px;
+  color: #4890E8;
+  font-weight: 500;
+}
+
+.place-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.place-actions button {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 4px;
+  font-family: Inter;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.place-actions button:hover {
+  opacity: 0.8;
+}
+
+.save-button-place {
+  background: #5EBE86;
+  color: #FFF;
+}
+
+.cancel-button-place {
+  background: #E8E8E8;
+  color: var(--text-grey);
+}
+
+/* Place tooltip styling */
+.place-tooltip {
+  background: #FFF !important;
+  border: 1px solid #E8E8E8 !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+  color: var(--text-black) !important;
+  font-family: Inter !important;
+  padding: 0 !important;
+}
+
+.place-tooltip:before {
+  border-top-color: #FFF !important;
+}
+
+/* Success and error message styling */
+.success-message, .error-message {
+  border-radius: 6px;
+  margin: 8px 0;
+  padding: 12px;
+  font-family: Inter;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.success-message {
+  background: #e8f5e8;
+  color: #2e7d32;
+  border-left: 4px solid #2e7d32;
+}
+
+.error-message {
+  background: #ffebee;
+  color: #c62828;
+  border-left: 4px solid #c62828;
+}
+
+/* Loading states */
+.loading {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid #E8E8E8;
+  border-top: 2px solid #4890E8;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+} font-size: 12px;
   color: var(--text-grey);
 }
 
