@@ -335,28 +335,16 @@ $(document).ready(function(){
   function switchColor(e) {
     e.stopPropagation();
     color = $(this).attr("data-color");
-    $("#inner-color").css({background:color});
-    toggleColor();
-  }
+    $("#inner-color").css({background:colo  // Enhanced search with autocomplete
+  let searchTimeout;
+  let currentSuggestions = [];
 
-  // Sanitizing input strings
-  function sanitize(string) {
-    const map = {
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        '"': '&quot;',
-        "'": '&#x27;',
-        "/": '&#x2F;',
-    };
-    const reg = /[&<>"'/]/ig;
-    return string.replace(reg, (match)=>(map[match]));
-  }
-
-  // Enhanced search with autocomplete
   function search() {
     const query = sanitize($("#search-input").val());
-    if (!query.trim()) return;
+    if (!query.trim()) {
+      hideSearchSuggestions();
+      return;
+    }
 
     // Use the new API for geocoding
     if (navigationAPI) {
@@ -368,12 +356,107 @@ $(document).ready(function(){
           // Add marker for search result
           const marker = L.marker([result.lat, result.lon]).addTo(map);
           marker.bindPopup(`<b>${result.display_name}</b>`).openPopup();
+          
+          hideSearchSuggestions();
         }
       }).catch(error => {
         console.error('Search error:', error);
         // Fallback to original search
         $.get('https://nominatim.openstreetmap.org/search?q='+query+'&format=json', function(data) {
           if (data && data.length > 0) {
+            map.panTo(new L.LatLng(data[0].lat, data[0].lon));
+            hideSearchSuggestions();
+          }
+        });
+      });
+    } else {
+      // Fallback to original search
+      $.get('https://nominatim.openstreetmap.org/search?q='+query+'&format=json', function(data) {
+        if (data && data.length > 0) {
+          map.panTo(new L.LatLng(data[0].lat, data[0].lon));
+          hideSearchSuggestions();
+        }
+      });
+    }
+  }
+
+  // Search autocomplete functionality
+  function handleSearchInput() {
+    const query = sanitize($("#search-input").val());
+    
+    // Clear previous timeout
+    if (searchTimeout) {
+      clearTimeout(searchTimeout);
+    }
+    
+    if (!query.trim()) {
+      hideSearchSuggestions();
+      return;
+    }
+
+    // Debounce search requests
+    searchTimeout = setTimeout(() => {
+      performSearchAutocomplete(query);
+    }, 300);
+  }
+
+  async function performSearchAutocomplete(query) {
+    try {
+      if (!navigationAPI) return;
+      
+      const results = await navigationAPI.geocodeLocation(query, 8);
+      currentSuggestions = results || [];
+      displaySearchSuggestions(currentSuggestions);
+    } catch (error) {
+      console.error('Autocomplete error:', error);
+      hideSearchSuggestions();
+    }
+  }
+
+  function displaySearchSuggestions(suggestions) {
+    hideSearchSuggestions();
+    
+    if (!suggestions || suggestions.length === 0) return;
+
+    const container = $('<div class="search-suggestions"></div>');
+    
+    suggestions.forEach((suggestion, index) => {
+      const item = $(`
+        <div class="search-suggestion" data-index="${index}">
+          <span class="suggestion-icon">📍</span>
+          <span class="suggestion-text">${suggestion.display_name}</span>
+          <span class="suggestion-type">${getLocationType(suggestion)}</span>
+        </div>
+      `);
+      
+      item.on('click', () => selectSuggestion(suggestion));
+      container.append(item);
+    });
+    
+    $('#search-box').append(container);
+  }
+
+  function selectSuggestion(suggestion) {
+    $('#search-input').val(suggestion.display_name);
+    hideSearchSuggestions();
+    
+    // Pan to location and add marker
+    map.panTo(new L.LatLng(suggestion.lat, suggestion.lon));
+    const marker = L.marker([suggestion.lat, suggestion.lon]).addTo(map);
+    marker.bindPopup(`<b>${suggestion.display_name}</b>`).openPopup();
+  }
+
+  function hideSearchSuggestions() {
+    $('.search-suggestions').remove();
+  }
+
+  function getLocationType(suggestion) {
+    if (suggestion.type === 'amenity') return suggestion.amenity || 'Location';
+    if (suggestion.type === 'shop') return suggestion.shop || 'Shop';
+    if (suggestion.type === 'tourism') return suggestion.tourism || 'Tourism';
+    if (suggestion.type === 'highway') return 'Road';
+    return 'Location';
+  }
             map.panTo(new L.LatLng(data[0].lat, data[0].lon));
           }
         });
@@ -587,11 +670,43 @@ $(document).ready(function(){
   function toggleAnnotations() {
     if (!$("#hide-annotations").hasClass("hidden-annotations")) {
       $(".leaflet-overlay-pane").css({"visibility": "hidden", "pointer-events":"none"});
-      $(".leaflet-tooltip-pane").css({"visibility": "hidden", "pointer-events":"none"});
-      $("#hide-annotations").addClass("hidden-annotations");
-      $("#hide-annotations").html("Show all");
+      $(".le  // Toggle dots menu
+  function toggleMoreMenu() {
+    if ($("#more-menu").hasClass("menu-show")) {
+      $("#more-menu").removeClass("menu-show");
     } else {
-      showAnnotations();
+      $("#more-menu").addClass("menu-show");
+    }
+  }
+
+  // Toggle mobile sidebar
+  function toggleMobileSidebar() {
+    if ($("#sidebar").hasClass("mobile-open")) {
+      $("#sidebar").removeClass("mobile-open");
+      $("#mobile-menu-toggle").removeClass("active");
+    } else {
+      $("#sidebar").addClass("mobile-open");
+      $("#mobile-menu-toggle").addClass("active");
+    }
+  }
+
+  // Check if mobile
+  function isMobile() {
+    return window.innerWidth <= 768;
+  }
+
+  // Handle window resize
+  function handleResize() {
+    if (isMobile()) {
+      $("#mobile-menu-toggle").show();
+      if (!$("#sidebar").hasClass("mobile-open")) {
+        $("#sidebar").addClass("mobile-hidden");
+      }
+    } else {
+      $("#mobile-menu-toggle").hide();
+      $("#sidebar").removeClass("mobile-open mobile-hidden");
+    }
+  }tations();
     }
   }
   function showAnnotations() {
@@ -820,16 +935,31 @@ $(document).ready(function(){
 
       // Get selected transport types
       const transportTypes = [];
-      $('#transport-filters input[type="checkbox"]:checked').each(function() {
-        transportTypes.push($(this).val());
-      });
-
-      // Calculate route with timeout
-      const routePromise = navigationRouter.calculateRoute(
-        origin, 
-        destination, 
-        currentRouteMode, 
-        transportTypes.length > 0 ? transportTypes : null
+      $('#transport-filters input[type="checkbox"]:c    } catch (error) {
+      console.error('Route calculation error:', error);
+      
+      // Provide more specific error messages
+      let errorMessage = 'An unexpected error occurred. Please try again.';
+      
+      if (error.message.includes('No route found')) {
+        errorMessage = 'No route found between the selected locations. Please try different locations or check if they are accessible.';
+      } else if (error.message.includes('Network error')) {
+        errorMessage = 'Network error. Please check your internet connection and try again.';
+      } else if (error.message.includes('timeout')) {
+        errorMessage = 'Route calculation timed out. Please try again with locations closer together.';
+      } else if (error.message.includes('Invalid coordinates')) {
+        errorMessage = 'Invalid location coordinates. Please try different locations.';
+      } else if (error.message.includes('Could not find origin') || error.message.includes('Could not find destination')) {
+        errorMessage = error.message;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      showError(errorMessage);
+    } finally {
+      $('#route-loading').hide();
+      $('#calculate-route').prop('disabled', false);
+    }tTypes.length > 0 ? transportTypes : null
       );
 
       const routeTimeoutPromise = new Promise((_, reject) => 
@@ -857,39 +987,7 @@ $(document).ready(function(){
     }
   }
 
-  // Enhanced error display function
-  function showError(message) {
-    // Remove any existing error messages
-    $('.error-message').remove();
-    
-    // Create error message
-    const errorHtml = `
-      <div class="error-message" style="
-        background: #ffebee; 
-        color: #c62828; 
-        padding: 12px; 
-        margin: 10px 0; 
-        border-radius: 5px; 
-        border-left: 4px solid #c62828;
-        font-family: Inter;
-        font-size: 14px;
-      ">
-        <strong>Error:</strong> ${message}
-      </div>
-    `;
-    
-    // Insert error message after navigation controls
-    $('#navigation-section .navigation-controls').after(errorHtml);
-    
-    // Auto-remove error after 10 seconds
-    setTimeout(() => {
-      $('.error-message').fadeOut(500, function() {
-        $(this).remove();
-      });
-    }, 10000);
-  }
-
-  function displayRouteResults(routes) {
+  // Enhanced error displa  function displayRouteResults(routes) {
     const resultsContainer = $('#route-results');
     resultsContainer.empty();
 
@@ -903,15 +1001,16 @@ $(document).ready(function(){
     });
 
     $('#route-results-section').show();
-  }
-
-  function createRouteElement(route, index) {
+    
+    // Scroll to results
+    $('#route-results-section')[0].scrollIntoView({ behavior: 'smooth' });
+  }px solid #c6282  function createRouteElement(route, index) {
     const isExpanded = index === 0; // Expand first route by default
     
     let routeHtml = `
       <div class="route-option">
         <div class="route-option-header" onclick="toggleRouteDetails(${index})">
-          <div class="route-option-title">Route ${index + 1}</div>
+          <div class="route-option-title">Route ${index + 1} ${route.type === 'walking' ? '(Walking)' : route.type === 'multi-modal' ? '(Multi-modal)' : ''}</div>
           <div class="route-option-summary">
             ${navigationRouter.formatDistance(route.distance)} • ${navigationRouter.formatDuration(route.duration)}
             ${route.transfers > 0 ? ` • ${route.transfers} transfer${route.transfers > 1 ? 's' : ''}` : ''}
@@ -921,6 +1020,76 @@ $(document).ready(function(){
     `;
 
     if (route.segments) {
+      route.segments.forEach((segment, segIndex) => {
+        routeHtml += `
+          <div class="route-segment ${segment.type}">
+            <div class="route-segment-icon">${segment.icon || '🚶'}</div>
+            <div class="route-segment-info">
+              <div class="route-segment-description">${segment.description}</div>
+              <div class="route-segment-details">
+                ${navigationRouter.formatDistance(segment.distance)} • ${navigationRouter.formatDuration(segment.duration)}
+                ${segment.hub ? `<br><small>Hub: ${segment.hub.name}</small>` : ''}
+              </div>
+            </div>
+          </div>
+        `;
+      });
+    } else if (route.steps) {
+      // Show step-by-step directions for full routes
+      route.steps.forEach((step, stepIndex) => {
+        const roadInfo = step.roadName ? ` on ${step.roadName}` : '';
+        const clickable = step.coordinates.length > 0 ? 'clickable-segment' : '';
+        routeHtml += `
+          <div class="route-segment walking ${clickable}" onclick="highlightRouteSegment(${index}, ${stepIndex})">
+            <div class="route-segment-icon">${step.icon || (stepIndex + 1)}</div>
+            <div class="route-segment-info">
+              <div class="route-segment-description">${step.instruction}${roadInfo}</div>
+              <div class="route-segment-details">
+                ${navigationRouter.formatDistance(step.distance)} • ${navigationRouter.formatDuration(step.duration)}
+                ${step.coordinates.length > 0 ? `<br><small>Click to highlight on map</small>` : ''}
+              </div>
+            </div>
+          </div>
+        `;
+      });
+    }
+
+    routeHtml += `
+        </div>
+      </div>
+    `;
+
+    return routeHtml;
+  }sfers} transfer${route.transfers > 1 ? 's' : ''}` : ''}
+    function toggleRouteDetails(index) {
+    const segments = $(`.route-option:eq(${index}) .route-segments`);
+    segments.toggle();
+  }
+
+  // Highlight route segment on map
+  function highlightRouteSegment(routeIndex, stepIndex) {
+    const route = navigationRouter.currentRoutes[routeIndex];
+    if (!route || !route.steps || !route.steps[stepIndex]) return;
+
+    const step = route.steps[stepIndex];
+    if (step.coordinates && step.coordinates.length > 0) {
+      // Create a highlight polyline for this segment
+      const highlightPolyline = L.polyline(step.coordinates, {
+        color: '#FF6B35',
+        weight: 8,
+        opacity: 0.8,
+        className: 'route-segment-highlight'
+      }).addTo(map);
+
+      // Fit map to show the segment
+      map.fitBounds(highlightPolyline.getBounds(), { padding: [20, 20] });
+
+      // Remove highlight after 3 seconds
+      setTimeout(() => {
+        map.removeLayer(highlightPolyline);
+      }, 3000);
+    }
+  }oute.segments) {
       route.segments.forEach(segment => {
         routeHtml += `
           <div class="route-segment ${segment.type}">
@@ -971,10 +1140,60 @@ $(document).ready(function(){
     } catch (error) {
       console.error('Error loading transport hubs:', error);
     }
+  }  function focusTransportHub(lat, lng) {
+    map.setView([lat, lng], 16);
   }
 
-  function displayTransportHubs(hubs) {
-    const container = $('#transport-hubs-list');
+  async function getDirectionsToHub(lat, lng, hubName) {
+    try {
+      // Get current location or ask user to enter origin
+      let origin;
+      
+      if (navigator.geolocation) {
+        try {
+          const position = await new Promise((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(resolve, reject, {
+              enableHighAccuracy: true,
+              timeout: 10000,
+              maximumAge: 300000
+            });
+          });
+          
+          origin = {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude
+          };
+        } catch (error) {
+          // Fallback to map center
+          const center = map.getCenter();
+          origin = {
+            lat: center.lat,
+            lng: center.lng
+          };
+        }
+      } else {
+        // Fallback to map center
+        const center = map.getCenter();
+        origin = {
+          lat: center.lat,
+          lng: center.lng
+        };
+      }
+
+      const destination = { lat: lat, lng: lng };
+      
+      // Set the inputs
+      $('#origin-input').val(`${origin.lat.toFixed(4)}, ${origin.lng.toFixed(4)}`);
+      $('#destination-input').val(hubName);
+      
+      // Calculate route
+      await calculateRoute();
+      
+    } catch (error) {
+      console.error('Error getting directions to hub:', error);
+      showError('Unable to get directions. Please try again.');
+    }
+  }rt-hubs-list');
     container.empty();
 
     if (hubs.length === 0) {
@@ -986,9 +1205,92 @@ $(document).ready(function(){
       const hubElement = `
         <div class="transport-hub-item" onclick="focusTransportHub(${hub.lat}, ${hub.lng})">
           <div class="hub-icon">${getTransportIcon(hub.type)}</div>
-          <div class="hub-info">
-            <div class="hub-name">${hub.name}</div>
-            <div class="hub-type">${hub.type.replace('_', ' ').toUpperCase()}</div>
+          <div class="hub-info"  // Enhanced error display function
+  function showError(message, type = 'error', duration = 10000) {
+    // Remove any existing error messages
+    $('.error-message, .success-message, .warning-message').remove();
+    
+    // Determine styling based on type
+    let bgColor, textColor, borderColor, icon;
+    switch(type) {
+      case 'success':
+        bgColor = '#e8f5e8';
+        textColor = '#2e7d32';
+        borderColor = '#4caf50';
+        icon = '✓';
+        break;
+      case 'warning':
+        bgColor = '#fff3e0';
+        textColor = '#ef6c00';
+        borderColor = '#ff9800';
+        icon = '⚠';
+        break;
+      default: // error
+        bgColor = '#ffebee';
+        textColor = '#c62828';
+        borderColor = '#f44336';
+        icon = '✗';
+    }
+    
+    // Create error message
+    const messageHtml = `
+      <div class="${type}-message" style="
+        background: ${bgColor}; 
+        color: ${textColor}; 
+        padding: 12px; 
+        margin: 10px 0; 
+        border-radius: 5px; 
+        border-left: 4px solid ${borderColor};
+        font-family: Inter;
+        font-size: 14px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      ">
+        <span style="font-size: 16px;">${icon}</span>
+        <span><strong>${type.charAt(0).toUpperCase() + type.slice(1)}:</strong> ${message}</span>
+        <button onclick="$(this).parent().fadeOut(300, function(){$(this).remove()})" style="
+          background: none;
+          border: none;
+          color: ${textColor};
+          font-size: 18px;
+          cursor: pointer;
+          margin-left: auto;
+          padding: 0;
+          width: 20px;
+          height: 20px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        ">×</button>
+      </div>
+    `;
+    
+    // Insert message after navigation controls
+    $('#navigation-section .navigation-controls').after(messageHtml);
+    
+    // Auto-remove message after specified duration
+    if (duration > 0) {
+      setTimeout(() => {
+        $(`.${type}-message`).fadeOut(500, function() {
+          $(this).remove();
+        });
+      }, duration);
+    }
+  }
+
+  // Success message function
+  function showSuccess(message, duration = 5000) {
+    showError(message, 'success', duration);
+  }
+
+  // Warning message function
+  function showWarning(message, duration = 8000) {
+    showError(message, 'warning', duration);
+  }
+
+  // Missing function definitions that were referenced but not implemented
+  function saveNearby() {.replace('_', ' ').toUpperCase()}</div>
           </div>
           <div class="hub-distance">${navigationRouter.formatDistance(hub.distance * 1000)}</div>
         </div>
@@ -1045,45 +1347,7 @@ $(document).ready(function(){
       place.marker.closeTooltip();
       
       // Show success message
-      console.log('Place saved successfully');
-    }
-  }
-
-  function cancelNearby() {
-    const placeId = $(this).attr('data-id');
-    const place = places.find(p => p.place_id === placeId);
-    
-    if (place) {
-      place.marker.remove();
-      places = places.filter(p => p.place_id !== placeId);
-      place_ids = place_ids.filter(id => id !== placeId);
-    }
-  }
-
-  function observationMode() {
-    const userId = $(this).attr('data-user');
-    const userName = $(this).attr('data-name');
-    
-    if (userId && userName) {
-      observing.status = true;
-      observing.id = userId;
-      $("#outline").addClass("observing");
-      $("#observing-name").text(`Observing ${userName}`);
-      
-      // Focus on user's cursor if available
-      const userCursor = cursors.find(c => c.user === userId);
-      if (userCursor) {
-        map.setView([userCursor.lat, userCursor.lng], map.getZoom());
-      }
-    }
-  }
-
-  function normalMode() {
-    stopObserving();
-    cursorTool();
-  }
-
-  // Enhanced loadTransportHubs function
+      console.log('Place saved success  // Enhanced loadTransportHubs function
   async function loadTransportHubs() {
     if (!navigationAPI) {
       console.warn('Navigation API not initialized');
@@ -1101,11 +1365,19 @@ $(document).ready(function(){
       const hubs = await navigationAPI.findNearestTransportHubs(
         { lat: center.lat, lng: center.lng },
         radius,
-        ['bus_station', 'taxi', 'public_transport', 'metro']
+        ['bus_station', 'taxi', 'public_transport', 'metro', 'bus_stop']
       );
 
-      transportHubs = hubs;
-      displayTransportHubs(hubs);
+      // Sort by distance and take top 20
+      const sortedHubs = hubs
+        .sort((a, b) => a.distance - b.distance)
+        .slice(0, 20);
+
+      transportHubs = sortedHubs;
+      displayTransportHubs(sortedHubs);
+      
+      // Add markers to map
+      addTransportHubMarkers(sortedHubs);
     } catch (error) {
       console.error('Error loading transport hubs:', error);
       // Show user-friendly error message
@@ -1117,9 +1389,96 @@ $(document).ready(function(){
     }
   }
 
-  // Enhanced displayTransportHubs function
+  // Add transport hub markers to map
+  function addTransportHubMarkers(hubs) {
+    // Clear existing transport hub markers
+    if (window.transportHubMarkers) {
+      window.transportHubMarkers.forEach(marker => map.removeLayer(marker));
+    }
+    window.transportHubMarkers = [];
+
+    hubs.forEach(hub => {
+      const icon = L.divIcon({
+        html: `<div class="transport-hub-marker" style="background: ${getTransportColor(hub.type)}">${getTransportIcon(hub.type)}</div>`,
+        iconSize: [25, 25],
+        className: 'transport-hub-icon'
+      });
+
+      const marker = L.marker([hub.lat, hub.lng], { icon: icon })
+        .addTo(map)
+        .bindPopup(`
+          <div class="hub-popup">
+            <h3>${hub.name}</h3>
+            <p><strong>Type:</strong> ${hub.type.replace('_', ' ').toUpperCase()}</p>
+            <p><strong>Distance:</strong> ${navigationRouter ? navigationRouter.formatDistance(hub.distance * 1000) : (hub.distance * 1000).toFixed(0) + 'm'}</p>
+            <button onclick="focusTransportHub(${hub.lat}, ${hub.lng})" style="
+              background: #4890E8; 
+              color: white; 
+              border: none; 
+              padding: 5px 10px; 
+              border-radius: 3px; 
+              cursor: pointer;
+              margin-top: 5px;
+            ">Get Directions</button>
+          </div>
+        `);
+
+      window.transportHubMarkers.push(marker);
+    });
+  }
+
+  function getTransportColor(type) {
+    const colors = {
+      'bus_station': '#5EBE86',
+      'metro': '#E15F59',
+      'taxi': '#F29F51',
+      'rickshaw': '#A564D2',
+      'bus_stop': '#4890E8',
+      'public_transport': '#634FF1'
+    };
+    return colors[type] || '#718390';
+  }portHubs function
+  async function load  // Enhanced displayTransportHubs function
   function displayTransportHubs(hubs) {
     const container = $('#transport-hubs-list');
+    container.empty();
+
+    if (hubs.length === 0) {
+      container.html(`
+        <div style="text-align: center; color: var(--text-grey); padding: 20px;">
+          No transport hubs found in this area.
+          <br><small>Try zooming out or moving to a different location.</small>
+        </div>
+      `);
+      return;
+    }
+
+    hubs.forEach((hub, index) => {
+      const hubElement = $(`
+        <div class="transport-hub-item" data-hub-index="${index}">
+          <div class="hub-icon">${getTransportIcon(hub.type)}</div>
+          <div class="hub-info">
+            <div class="hub-name">${hub.name}</div>
+            <div class="hub-type">${hub.type.replace('_', ' ').toUpperCase()}</div>
+          </div>
+          <div class="hub-distance">${navigationRouter ? navigationRouter.formatDistance(hub.distance * 1000) : (hub.distance * 1000).toFixed(0) + 'm'}</div>
+          <div class="hub-actions">
+            <button class="hub-action-btn" onclick="focusTransportHub(${hub.lat}, ${hub.lng})" title="Focus on map">📍</button>
+            <button class="hub-action-btn" onclick="getDirectionsToHub(${hub.lat}, ${hub.lng}, '${hub.name}')" title="Get directions">🧭</button>
+          </div>
+        </div>
+      `);
+      
+      // Add click handler for the entire item
+      hubElement.on('click', function(e) {
+        if (!$(e.target).hasClass('hub-action-btn')) {
+          focusTransportHub(hub.lat, hub.lng);
+        }
+      });
+      
+      container.append(hubElement);
+    });
+  }('#transport-hubs-list');
     container.empty();
 
     if (hubs.length === 0) {
@@ -1138,16 +1497,15 @@ $(document).ready(function(){
           <div class="hub-icon">${getTransportIcon(hub.type)}</div>
           <div class="hub-info">
             <div class="hub-name">${hub.name}</div>
-            <div class="hub-type">${hub.type.replace('_', ' ').toUpperCase()}</div>
-          </div>
-          <div class="hub-distance">${navigationRouter ? navigationRouter.formatDistance(hub.distance * 1000) : (hub.distance * 1000).toFixed(0) + 'm'}</div>
-        </div>
-      `;
-      container.append(hubElement);
-    });
-  }
-
-  // Enhanced addTransportHub function
+            <div class="hub-type">${hub.type.replace('_', ' ').toUpper  // Make functions globally available
+  window.toggleRouteDetails = toggleRouteDetails;
+  window.highlightRouteSegment = highlightRouteSegment;
+  window.focusTransportHub = focusTransportHub;
+  window.getDirectionsToHub = getDirectionsToHub;
+  window.saveNearby = saveNearby;
+  window.cancelNearby = cancelNearby;
+  window.observationMode = observationMode;
+  window.normalMode = normalMode;ddTransportHub function
   function addTransportHub() {
     // Switch to marker tool for adding transport hubs
     markerTool();
@@ -1200,10 +1558,13 @@ $(document).ready(function(){
       startDrawing(lat,lng);
     }
   });
-  map.addEventListener('mouseup', (event) => {
-    mousedown = false;
-  })
-  map.addEventListener('mousemove', (event) => {
+  map.addEventLis  map.addEventListener('moveend', (event) => {
+    dragging = false;
+    // Refresh transport hubs when map stops moving
+    if (navigationAPI) {
+      loadTransportHubs();
+    }
+  });tListener('mousemove', (event) => {
     // Get cursor coordinates and save them locally
     let lat = Math.round(event.latlng.lat * 100000) / 100000;
     let lng = Math.round(event.latlng.lng * 100000) / 100000;
@@ -1356,24 +1717,43 @@ $(document).ready(function(){
   $(document).on("mouseout", ".tool", hideTooltip);
   $(document).on("click", ".avatars", observationMode);
   $(document).on("click", ".annotation-arrow", toggleLayer);
-  $(document).on("click", ".annotation-item", focusLayer);
-  $(document).on("click", ".delete-layer", deleteLayer);
-  $(document).on("mousedown", "#map-name", editMapName);
+  $(doc  $(document).on("click", "#more-vertical", toggleMoreMenu);
+  $(document).on("click", "#mobile-menu-toggle", toggleMobileSidebar);
+  $(document).on("click", "#geojson", exportGeoJSON);(document).on("mousedown", "#map-name", editMapName);
   $(document).on("mouseup", "#map-name", focusMapName);
   $(document).on("focusout", "#map-name", stopEditingMapName);
   $(document).on("mousedown", "#map-description", editMapDescription);
-  $(document).on("mouseup", "#map-description", focusMapDescription);
-  $(document).on("focusout", "#map-description", stopEditingMapDescription);
-  $(document).on("click", "#hide-annotations", toggleAnnotations);
+   // Search automatically when focused & pressing enter
+  $(document).on("keydown", "#search-input", function(e){
+    if (e.key === "Enter") {
+      search();
+    } else if (e.key === "Escape") {
+      hideSearchSuggestions();
+    }
+  });
+
+  // Handle search input for autocomplete
+  $(document).on("input", "#search-input", handleSearchInput);
+  
+  // Hide suggestions when clicking outside
+  $(document).on("click", function(e) {
+    if (!$(e.target).closest('#search-box').length) {
+      hideSearchSuggestions();
+    }
+  });k", "#hide-annotations", toggleAnnotations);
   $(document).on("click", "#location-control", targetLiveLocation);
   $(document).on("click", ".find-nearby", findNearby);
   $(document).on("click", ".save-button-place", saveNearby);
   $(document).on("click", ".cancel-button-place", cancelNearby);
   $(document).on("click", "#more-vertical", toggleMoreMenu);
   $(document).on("click", "#geojson", exportGeoJSON);
-  $(document).on("click", "#search-box img", search);
-  $(document).on("click", "#share-button", showSharePopup);
-  $(document).on("click", "#overlay", closeSharePopup);
+  $(document).on("click", "#search-  // Get live location of the current user. Only if Geolocation is activated (local only)
+  liveLocation();
+
+  // Initialize mobile responsiveness
+  handleResize();
+  $(window).on('resize', handleResize);
+});erlay", closeSharePopup);
   $(document).on("click", "#close-share", closeSharePopup);
   $(document).on("click", "#share-copy", copyShareLink);
   $(document).on("click", "#zoom-in", zoomIn);

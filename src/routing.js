@@ -28,10 +28,6 @@ class NavigationRouter {
       }
     } catch (error) {
       console.error('Route calculation error:', error);
-      throw error;
-    }
-  }
-
   // Full route calculation (point-to-point)
   async calculateFullRoute(origin, destination) {
     const coords = [
@@ -48,13 +44,38 @@ class NavigationRouter {
     const route = routeData.routes[0];
     const geometry = routeData.routes[0].geometry;
     
-    // Create route polyline
-    const routePolyline = L.polyline(geometry.coordinates.map(coord => [coord[1], coord[0]]), {
+    // Create route polyline with proper coordinates
+    const coordinates = geometry.coordinates.map(coord => [coord[1], coord[0]]);
+    const routePolyline = L.polyline(coordinates, {
       color: '#4890E8',
       weight: 6,
       opacity: 0.8,
       className: 'route-line'
     }).addTo(this.map);
+
+    // Add start and end markers
+    const startIcon = L.divIcon({
+      html: '<div style="background: #4CAF50; color: white; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold;">A</div>',
+      iconSize: [20, 20],
+      className: 'route-marker'
+    });
+
+    const endIcon = L.divIcon({
+      html: '<div style="background: #F44336; color: white; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold;">B</div>',
+      iconSize: [20, 20],
+      className: 'route-marker'
+    });
+
+    const startMarker = L.marker([origin.lat, origin.lng], { icon: startIcon })
+      .addTo(this.map)
+      .bindPopup(`<b>Start:</b> ${origin.lat.toFixed(4)}, ${origin.lng.toFixed(4)}`);
+
+    const endMarker = L.marker([destination.lat, destination.lng], { icon: endIcon })
+      .addTo(this.map)
+      .bindPopup(`<b>End:</b> ${destination.lat.toFixed(4)}, ${destination.lng.toFixed(4)}`);
+
+    // Process steps for detailed directions
+    const processedSteps = processRouteSteps(route.legs[0].steps || []);
 
     // Add route info
     const routeInfo = {
@@ -63,13 +84,19 @@ class NavigationRouter {
       duration: route.duration,
       geometry: geometry,
       polyline: routePolyline,
-      steps: route.legs[0].steps || []
+      startMarker: startMarker,
+      endMarker: endMarker,
+      steps: processedSteps
     };
 
     this.currentRoutes.push(routeInfo);
     
-    // Fit map to route
-    this.map.fitBounds(routePolyline.getBounds(), { padding: [20, 20] });
+    // Fit map to route with padding
+    const bounds = routePolyline.getBounds();
+    this.map.fitBounds(bounds, { padding: [50, 50] });
+
+    return routeInfo;
+  }olyline.getBounds(), { padding: [20, 20] });
 
     return routeInfo;
   }
@@ -287,16 +314,7 @@ class NavigationRouter {
   getTransportProfile(transportType) {
     const profiles = {
       'bus_station': 'driving',
-      'metro': 'driving', // Metro routes are often underground, use driving as approximation
-      'taxi': 'driving',
-      'rickshaw': 'driving',
-      'bus_stop': 'driving',
-      'transport_hub': 'driving'
-    };
-    return profiles[transportType] || 'driving';
-  }
-
-  // Render multiple route options on the map
+      'metro': 'driving  // Render multiple route options on the map
   renderRouteOptions(routes) {
     const colors = ['#4890E8', '#5EBE86', '#F29F51'];
     
@@ -343,6 +361,8 @@ class NavigationRouter {
                 <div class="hub-popup">
                   <h3>${segment.hub.name}</h3>
                   <p>${segment.description}</p>
+                  <p><strong>Distance:</strong> ${this.formatDistance(segment.distance)}</p>
+                  <p><strong>Duration:</strong> ${this.formatDuration(segment.duration)}</p>
                 </div>
               `);
             
@@ -370,15 +390,84 @@ class NavigationRouter {
           });
         }
       });
-      this.map.fitBounds(bounds, { padding: [20, 20] });
+      this.map.fitBounds(bounds, { padding: [50, 50] });
     }
-  }
-
-  // Clear all current routes from map
+  }end(route.polyline.getBounds());
+        } else if (route.polylines) {
+     // Clear all current routes from map
   clearRoutes() {
     this.currentRoutes.forEach(route => {
       if (route.polyline) {
         this.map.removeLayer(route.polyline);
+      }
+      if (route.polylines) {
+        route.polylines.forEach(polyline => {
+          this.map.removeLayer(polyline);
+        });
+      }
+      if (route.startMarker) {
+        this.map.removeLayer(route.startMarker);
+      }
+      if (route.endMarker) {
+        this.map.removeLayer(route.endMarker);
+      }
+    });
+    this.currentRoutes = [];
+  }> {
+      if (  // Process route steps for detailed directions
+  processRouteSteps(steps) {
+    return steps.map((step, index) => {
+      const instruction = step.maneuver ? step.maneuver.instruction : 'Continue';
+      const distance = step.distance || 0;
+      const duration = step.duration || 0;
+      
+      // Get maneuver type for icon
+      const maneuverType = step.maneuver ? step.maneuver.type : 'straight';
+      const icon = this.getManeuverIcon(maneuverType);
+      
+      // Get road name if available
+      const roadName = step.name || step.maneuver?.modifier || '';
+      
+      return {
+        index: index + 1,
+        instruction: instruction,
+        distance: distance,
+        duration: duration,
+        icon: icon,
+        roadName: roadName,
+        maneuverType: maneuverType,
+        coordinates: step.geometry ? step.geometry.coordinates.map(coord => [coord[1], coord[0]]) : []
+      };
+    });
+  }
+
+  // Get icon for maneuver type
+  getManeuverIcon(maneuverType) {
+    const icons = {
+      'turn': '↗',
+      'turn-left': '↰',
+      'turn-right': '↱',
+      'turn-sharp-left': '↶',
+      'turn-sharp-right': '↷',
+      'turn-slight-left': '↖',
+      'turn-slight-right': '↗',
+      'straight': '→',
+      'uturn': '↶',
+      'arrive': '🏁',
+      'depart': '🚀',
+      'merge': '⇄',
+      'ramp': '↗',
+      'roundabout': '↻',
+      'fork': '⇉',
+      'end-of-road': '⛔',
+      'continue': '→',
+      'new-name': '→'
+    };
+    return icons[maneuverType] || '→';
+  }
+
+  // Helper functions
+  getTransportName(type) {route.polyline);
       }
       if (route.polylines) {
         route.polylines.forEach(polyline => {

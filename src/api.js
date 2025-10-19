@@ -40,13 +40,12 @@ class NavigationAPI {
   async fetchOSRMRoute(coords, profile = 'driving') {
     const cacheKey = `osrm_${profile}_${coords.join('_')}`;
     const cached = this.getCached(cacheKey);
-    if (cached) return cached;
-
-    await this.rateLimit();
-
-    // Try multiple OSRM servers for redundancy
+    if (cached) ret    // Try multiple OSRM servers for redundancy
     const servers = [
       'https://router.project-osrm.org',
+      'https://routing.openstreetmap.de',
+      'https://routing.openstreetmap.org'
+    ];
       'https://routing.openstreetmap.de'
     ];
 
@@ -129,15 +128,13 @@ class NavigationAPI {
 
   // Overpass API for transport amenities with enhanced error handling
   async fetchOverpassTransport(bounds, types = ['bus_station', 'taxi', 'public_transport']) {
-    const cacheKey = `overpass_${bounds.join('_')}_${types.join('_')}`;
-    const cached = this.getCached(cacheKey);
-    if (cached) return cached;
-
-    await this.rateLimit();
-
-    // Try multiple Overpass servers
+    const cacheKey = `overpass_${bounds.join('_')}_${    // Try multiple Overpass servers
     const servers = [
       'https://overpass-api.de/api/interpreter',
+      'https://lz4.overpass-api.de/api/interpreter',
+      'https://z.overpass-api.de/api/interpreter',
+      'https://overpass.openstreetmap.ru/api/interpreter'
+    ];pi.de/api/interpreter',
       'https://lz4.overpass-api.de/api/interpreter',
       'https://z.overpass-api.de/api/interpreter'
     ];
@@ -203,16 +200,10 @@ out body;`;
   async geocodeLocation(query, limit = 5) {
     const cacheKey = `geocode_${query}`;
     const cached = this.getCached(cacheKey);
-    if (cached) return cached;
-
-    await this.rateLimit();
-
-    try {
-      const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=${limit}&addressdetails=1`;
-      
-      const response = await fetch(url, {
+    if (cached) return cac      const response = await fetch(url, {
         headers: {
-          'User-Agent': 'MultiModalNavigation/1.0'
+          'User-Agent': 'MultiModalNavigation/1.0',
+          'Accept-Language': 'en-US,en;q=0.9'
         }
       });
 
@@ -221,6 +212,27 @@ out body;`;
       }
 
       const data = await response.json();
+      this.setCache(cacheKey, data);
+      return data;
+    } catch (error) {)}&format=json&limit=${limit}&addressdetails=1`;
+      
+      const response = await fetch(url, {
+        headers: {
+          'User-Agent': 'MultiModalNavigation/1.0'
+           } catch (error) {
+      console.error('Nominatim API Error:', error);
+      
+      // Provide more specific error messages
+      if (error.message.includes('Failed to fetch')) {
+        throw new Error('Network error. Please check your internet connection and try again.');
+      } else if (error.message.includes('timeout')) {
+        throw new Error('Search request timed out. Please try again.');
+      } else if (error.message.includes('429')) {
+        throw new Error('Too many requests. Please wait a moment and try again.');
+      } else {
+        throw new Error('Failed to search location. Please try again.');
+      }
+    }esponse.json();
       this.setCache(cacheKey, data);
       return data;
     } catch (error) {
@@ -233,16 +245,10 @@ out body;`;
   async reverseGeocode(lat, lng) {
     const cacheKey = `reverse_${lat}_${lng}`;
     const cached = this.getCached(cacheKey);
-    if (cached) return cached;
-
-    await this.rateLimit();
-
-    try {
-      const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1`;
-      
-      const response = await fetch(url, {
+    if (cac      const response = await fetch(url, {
         headers: {
-          'User-Agent': 'MultiModalNavigation/1.0'
+          'User-Agent': 'MultiModalNavigation/1.0',
+          'Accept-Language': 'en-US,en;q=0.9'
         }
       });
 
@@ -251,6 +257,26 @@ out body;`;
       }
 
       const data = await response.json();
+      this.setCache(cacheKey, data);
+      return data;
+    } catch (error) {g/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1&extratags=1&namedetails=1`;
+      
+      const response = await fetch(url, {
+        headers: {
+          'User-Agent': 'MultiModalN    } catch (error) {
+      console.error('Nominatim Reverse API Error:', error);
+      
+      // Provide more specific error messages
+      if (error.message.includes('Failed to fetch')) {
+        throw new Error('Network error. Please check your internet connection and try again.');
+      } else if (error.message.includes('timeout')) {
+        throw new Error('Address lookup timed out. Please try again.');
+      } else if (error.message.includes('429')) {
+        throw new Error('Too many requests. Please wait a moment and try again.');
+      } else {
+        throw new Error('Failed to get address. Please try again.');
+      }
+    }onst data = await response.json();
       this.setCache(cacheKey, data);
       return data;
     } catch (error) {
