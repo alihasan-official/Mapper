@@ -62,12 +62,7 @@ class NavigationAPI {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
         
-        const response = await fetch(url, {
-          signal: controller.signal,
-          headers: {
-            'User-Agent': 'MultiModalNavigation/1.0'
-          }
-        });
+        const response = await fetch(url, { signal: controller.signal });
         
         clearTimeout(timeoutId);
         
@@ -171,8 +166,7 @@ out body;`;
         const response = await fetch(server, {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'User-Agent': 'MultiModalNavigation/1.0'
+            'Content-Type': 'application/x-www-form-urlencoded'
           },
           body: `data=${encodeURIComponent(query)}`,
           signal: controller.signal
@@ -240,8 +234,7 @@ out center tags;`;
         const response = await fetch(server, {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'User-Agent': 'MultiModalNavigation/1.0'
+            'Content-Type': 'application/x-www-form-urlencoded'
           },
           body: `data=${encodeURIComponent(query)}`,
           signal: controller.signal
@@ -305,11 +298,7 @@ out center tags;`;
     try {
       const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=${limit}&addressdetails=1`;
       
-      const response = await fetch(url, {
-        headers: {
-          'User-Agent': 'MultiModalNavigation/1.0'
-        }
-      });
+      const response = await fetch(url);
 
       if (!response.ok) {
         throw new Error(`Nominatim API error: ${response.status}`);
@@ -335,11 +324,7 @@ out center tags;`;
     try {
       const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1`;
       
-      const response = await fetch(url, {
-        headers: {
-          'User-Agent': 'MultiModalNavigation/1.0'
-        }
-      });
+      const response = await fetch(url);
 
       if (!response.ok) {
         throw new Error(`Nominatim API error: ${response.status}`);
